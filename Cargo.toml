@@ -1,0 +1,159 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/libretto-core",
+    "crates/libretto-platform",
+    "crates/libretto-cache",
+    "crates/libretto-repository",
+    "crates/libretto-resolver",
+    "crates/libretto-downloader",
+    "crates/libretto-archive",
+    "crates/libretto-vcs",
+    "crates/libretto-autoloader",
+    "crates/libretto-plugin-system",
+    "crates/libretto-audit",
+    "crates/libretto-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/libretto-pm/libretto"
+authors = ["Libretto Contributors"]
+keywords = ["composer", "package-manager", "php", "dependency"]
+categories = ["development-tools", "command-line-utilities"]
+
+[workspace.dependencies]
+# Internal crates
+libretto-core = { path = "crates/libretto-core" }
+libretto-platform = { path = "crates/libretto-platform" }
+libretto-cache = { path = "crates/libretto-cache" }
+libretto-repository = { path = "crates/libretto-repository" }
+libretto-resolver = { path = "crates/libretto-resolver" }
+libretto-downloader = { path = "crates/libretto-downloader" }
+libretto-archive = { path = "crates/libretto-archive" }
+libretto-vcs = { path = "crates/libretto-vcs" }
+libretto-autoloader = { path = "crates/libretto-autoloader" }
+libretto-plugin-system = { path = "crates/libretto-plugin-system" }
+libretto-audit = { path = "crates/libretto-audit" }
+
+# Async runtime
+tokio = { version = "1.35", features = ["full", "parking_lot"] }
+
+# CLI
+clap = { version = "4.4", features = ["derive", "env", "unicode", "wrap_help", "string"] }
+
+# Parallelism
+rayon = "1.8"
+
+# Concurrent data structures
+dashmap = "5.5"
+parking_lot = "0.12"
+
+# Fast hashing
+ahash = "0.8"
+blake3 = "1.5"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# JSON (high-performance)
+sonic-rs = "0.3"
+serde = { version = "1.0", features = ["derive", "rc"] }
+
+# HTTP client
+reqwest = { version = "0.12", default-features = false, features = [
+    "rustls-tls",
+    "gzip",
+    "brotli",
+    "deflate",
+    "json",
+    "stream",
+] }
+
+# Graph algorithms
+petgraph = "0.6"
+
+# Version parsing
+semver = { version = "1.0", features = ["serde"] }
+
+# Dynamic loading
+libloading = "0.8"
+
+# Memory allocator
+mimalloc = { version = "0.1", default-features = false }
+
+# Archive handling
+zip = { version = "2.0", default-features = false, features = ["deflate", "bzip2", "zstd"] }
+tar = "0.4"
+flate2 = "1.0"
+
+# Git operations
+gix = { version = "0.66", default-features = false, features = [
+    "blocking-network-client",
+    "blocking-http-transport-reqwest-rust-tls",
+] }
+
+# Filesystem
+walkdir = "2.4"
+tempfile = "3.9"
+directories = "5.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# URL
+url = { version = "2.5", features = ["serde"] }
+
+# Time
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+
+# Terminal UI
+indicatif = { version = "0.17", features = ["rayon"] }
+console = "0.15"
+
+# Futures
+futures = "0.3"
+
+# Bytes
+bytes = "1.5"
+
+# Once cell
+once_cell = "1.19"
+
+# Regex
+regex = "1.10"
+
+# Testing
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+cargo = "warn"
+unwrap_used = "warn"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true
+panic = "abort"
+debug = false
+
+[profile.dev]
+opt-level = 1
+
+[profile.bench]
+inherits = "release"
+debug = true
+strip = false

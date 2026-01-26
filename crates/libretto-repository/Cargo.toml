@@ -1,0 +1,26 @@
+[package]
+name = "libretto-repository"
+description = "Package repository clients for Libretto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+libretto-core = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+url = { workspace = true }
+serde = { workspace = true }
+sonic-rs = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }
+dashmap = { workspace = true }
+ahash = { workspace = true }
+semver = { workspace = true }
+chrono = { workspace = true }

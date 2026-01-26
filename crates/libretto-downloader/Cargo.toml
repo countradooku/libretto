@@ -1,0 +1,24 @@
+[package]
+name = "libretto-downloader"
+description = "Package downloading for Libretto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+libretto-core = { workspace = true }
+libretto-platform = { workspace = true }
+tokio = { workspace = true }
+reqwest = { workspace = true }
+futures = { workspace = true }
+bytes = { workspace = true }
+tracing = { workspace = true }
+tempfile = { workspace = true }
+indicatif = { workspace = true }
+url = { workspace = true }

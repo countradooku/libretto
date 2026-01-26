@@ -1,0 +1,55 @@
+# Libretto Cross-Compilation Configuration
+# Targets: Linux x64/ARM64, macOS x64/ARM64, Windows x64
+
+[build]
+rustflags = ["-C", "target-cpu=native"]
+
+# Linux x86_64
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=x86-64-v3", "-C", "link-arg=-fuse-ld=lld"]
+
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-cpu=x86-64-v3", "-C", "target-feature=+crt-static"]
+
+# Linux ARM64
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=neoverse-n1", "-C", "link-arg=-fuse-ld=lld"]
+linker = "aarch64-linux-gnu-gcc"
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "target-cpu=neoverse-n1", "-C", "target-feature=+crt-static"]
+linker = "aarch64-linux-musl-gcc"
+
+# macOS x86_64
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+# macOS ARM64 (Apple Silicon)
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-cpu=apple-m1"]
+
+# Windows x86_64
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-cpu=x86-64-v3"]
+
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "target-cpu=x86-64-v3"]
+linker = "x86_64-w64-mingw32-gcc"
+
+[alias]
+br = "build --release"
+linux-x64 = "build --release --target x86_64-unknown-linux-gnu"
+linux-arm64 = "build --release --target aarch64-unknown-linux-gnu"
+macos-x64 = "build --release --target x86_64-apple-darwin"
+macos-arm64 = "build --release --target aarch64-apple-darwin"
+windows-x64 = "build --release --target x86_64-pc-windows-msvc"
+
+[env]
+CARGO_INCREMENTAL = "0"
+
+[net]
+retry = 3
+git-fetch-with-cli = true
+
+[registries.crates-io]
+protocol = "sparse"

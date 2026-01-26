@@ -1,0 +1,54 @@
+[package]
+name = "libretto-resolver"
+description = "PubGrub-based dependency resolution for Libretto"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+libretto-core = { workspace = true }
+petgraph = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+ahash = { workspace = true }
+serde = { workspace = true }
+sonic-rs = { workspace = true }
+dashmap = { workspace = true }
+rayon = { workspace = true }
+parking_lot = { workspace = true }
+thiserror = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+
+# PubGrub algorithm (Astral's optimized fork used in uv)
+pubgrub = { package = "astral-pubgrub", version = "0.3" }
+version-ranges = { package = "astral-version-ranges", version = "0.1" }
+
+# Arena allocation for temporary data
+bumpalo = { version = "3.16", features = ["collections"] }
+
+# Small vector optimization
+smallvec = { version = "1.13", features = ["union", "const_generics", "serde"] }
+
+# Indexmap for ordered maps
+indexmap = { version = "2.7", features = ["serde"] }
+
+# Derive more traits
+derive_more = { version = "1.0", features = ["display", "from", "into"] }
+
+[dev-dependencies]
+criterion = { workspace = true }
+rand = "0.8"
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+proptest = "1.4"
+test-case = "3.3"
+
+[[bench]]
+name = "resolver_bench"
+harness = false

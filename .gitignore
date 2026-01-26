@@ -1,0 +1,43 @@
+# Build artifacts
+/target
+**/target
+
+# Cargo lock for libraries (keep for binaries)
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+*.profraw
+*.profdata
+
+# Benchmark results
+criterion/
+
+# Coverage
+coverage/
+*.lcov
+
+# Documentation
+/doc/
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Package manager artifacts (PHP)
+vendor/
+composer.lock

@@ -1,0 +1,39 @@
+[package]
+name = "libretto-cli"
+description = "Command-line interface for Libretto package manager"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "libretto"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+libretto-core = { workspace = true }
+libretto-platform = { workspace = true }
+libretto-cache = { workspace = true }
+libretto-repository = { workspace = true }
+libretto-resolver = { workspace = true }
+libretto-downloader = { workspace = true }
+libretto-archive = { workspace = true }
+libretto-vcs = { workspace = true }
+libretto-autoloader = { workspace = true }
+libretto-plugin-system = { workspace = true }
+libretto-audit = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+console = { workspace = true }
+indicatif = { workspace = true }
+serde = { workspace = true }
+sonic-rs = { workspace = true }
+anyhow = { workspace = true }
+semver = { workspace = true }
