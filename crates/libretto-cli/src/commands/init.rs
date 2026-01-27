@@ -7,7 +7,7 @@ use std::path::Path;
 use tracing::info;
 
 /// Arguments for the init command.
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct InitArgs {
     /// Project name (vendor/name)
     #[arg(long)]

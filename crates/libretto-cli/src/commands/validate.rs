@@ -9,7 +9,7 @@ use std::path::Path;
 use tracing::info;
 
 /// Arguments for the validate command.
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct ValidateArgs {
     /// Check composer.lock too
     #[arg(long)]

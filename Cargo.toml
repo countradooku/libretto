@@ -4,6 +4,7 @@ members = [
     "crates/libretto-core",
     "crates/libretto-platform",
     "crates/libretto-cache",
+    "crates/libretto-config",
     "crates/libretto-repository",
     "crates/libretto-resolver",
     "crates/libretto-downloader",
@@ -31,6 +32,7 @@ categories = ["development-tools", "command-line-utilities"]
 libretto-core = { path = "crates/libretto-core" }
 libretto-platform = { path = "crates/libretto-platform" }
 libretto-cache = { path = "crates/libretto-cache" }
+libretto-config = { path = "crates/libretto-config" }
 libretto-repository = { path = "crates/libretto-repository" }
 libretto-resolver = { path = "crates/libretto-resolver" }
 libretto-downloader = { path = "crates/libretto-downloader" }
@@ -163,6 +165,12 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 # Terminal UI
 indicatif = { version = "0.17", features = ["rayon"] }
 console = "0.15"
+comfy-table = "7.1"
+dialoguer = { version = "0.11", features = ["fuzzy-select"] }
+owo-colors = { version = "4.0", features = ["supports-colors"] }
+
+# Error reporting
+miette = { version = "7.2", features = ["fancy"] }
 
 # Futures
 futures = "0.3"

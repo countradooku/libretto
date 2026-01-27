@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tracing::info;
 
 /// Arguments for the audit command.
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct AuditArgs {
     /// Output format (table, json)
     #[arg(short, long, default_value = "table")]

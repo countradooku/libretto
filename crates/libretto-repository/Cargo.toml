@@ -1,6 +1,6 @@
 [package]
 name = "libretto-repository"
-description = "Package repository clients for Libretto"
+description = "Package repository clients for Libretto - Packagist, VCS, and custom repositories"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,15 +12,62 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+# Internal crates
 libretto-core = { workspace = true }
+libretto-cache = { workspace = true }
+
+# Async runtime
 tokio = { workspace = true }
+
+# HTTP client
 reqwest = { workspace = true }
+http = { workspace = true }
+
+# URL parsing
 url = { workspace = true }
+
+# Serialization
 serde = { workspace = true }
 sonic-rs = { workspace = true }
+
+# Logging
 tracing = { workspace = true }
+
+# Async utilities
 futures = { workspace = true }
+
+# Concurrent data structures
 dashmap = { workspace = true }
 ahash = { workspace = true }
+parking_lot = { workspace = true }
+
+# Version parsing
 semver = { workspace = true }
+
+# Time
 chrono = { workspace = true }
+
+# Rate limiting
+governor = { workspace = true }
+nonzero_ext = { workspace = true }
+
+# Retry with backoff
+backon = { workspace = true }
+
+# Parallelism
+rayon = { workspace = true }
+
+# Bytes
+bytes = { workspace = true }
+
+# Regex for pattern matching
+regex = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+criterion = { workspace = true }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+
+[[bench]]
+name = "repository"
+harness = false

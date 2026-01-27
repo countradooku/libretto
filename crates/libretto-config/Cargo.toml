@@ -1,0 +1,75 @@
+[package]
+name = "libretto-config"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+description = "Hierarchical configuration management for Libretto package manager"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Internal crates
+libretto-core = { workspace = true }
+libretto-platform = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+sonic-rs = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+miette = { workspace = true }
+
+# Concurrency
+once_cell = { workspace = true }
+parking_lot = { workspace = true }
+dashmap = { workspace = true }
+
+# File watching
+notify = { version = "6.1", default-features = false, features = ["macos_kqueue"] }
+
+# Secure credential storage
+keyring = { version = "3.6", optional = true }
+
+# User interaction
+dialoguer = { workspace = true }
+
+# Async
+tokio = { workspace = true, features = ["sync", "fs"] }
+
+# Hashing for cache keys
+ahash = { workspace = true }
+blake3 = { workspace = true }
+
+# URL parsing
+url = { workspace = true }
+
+# Regex for validation
+regex = { workspace = true }
+
+# Paths and directories
+directories = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Byte size parsing
+bytesize = "1.3"
+
+# Unix-specific
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", default-features = false, features = ["user"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[features]
+default = []
+keyring = ["dep:keyring"]

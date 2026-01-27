@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use tracing::info;
 
 /// Arguments for the dump-autoload command.
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone)]
 pub struct DumpAutoloadArgs {
     /// Optimize autoloader for production
     #[arg(short, long)]

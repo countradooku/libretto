@@ -1,435 +1,219 @@
-//! Package repository clients for Libretto.
+//! High-performance package repository clients for Libretto.
+//!
+//! This crate provides comprehensive repository integration for the Libretto
+//! package manager, supporting:
+//!
+//! - **Packagist API v2**: Full support for packagist.org and private Packagist
+//!   instances, including lazy metadata loading, provider-includes, and ETags
+//!   for efficient caching.
+//!
+//! - **VCS Providers**: GitHub, GitLab, and Bitbucket API integration for
+//!   fetching composer.json from version control repositories.
+//!
+//! - **Multiple Repository Types**: Composer, VCS, Path, Package, and Artifact
+//!   repositories as defined by the Composer specification.
+//!
+//! - **HTTP Client**: High-performance HTTP/2 client with connection pooling,
+//!   per-host rate limiting, exponential backoff retry, and conditional
+//!   request support (ETags, If-Modified-Since).
+//!
+//! - **Caching**: Multi-tier caching with in-memory LRU and optional persistent
+//!   disk storage via libretto-cache.
+//!
+//! - **Security Advisories**: Integration with Packagist security advisories API
+//!   for vulnerability checking.
+//!
+//! ## Performance Targets
+//!
+//! - Fetch metadata for 100 packages in <500ms (cold cache)
+//! - Fetch metadata for 100 packages in <50ms (warm cache)
+//! - Support 1000+ requests/second with proper caching
+//!
+//! ## Example
+//!
+//! ```no_run
+//! use libretto_repository::{RepositoryManager, PackagistClient};
+//! use libretto_core::PackageId;
+//!
+//! # async fn example() -> libretto_repository::Result<()> {
+//! // Create a repository manager
+//! let manager = RepositoryManager::new();
+//! manager.add_packagist()?;
+//!
+//! // Search for packages
+//! let results = manager.search("monolog").await?;
+//! for result in results.iter().take(5) {
+//!     println!("{}: {}", result.name, result.description);
+//! }
+//!
+//! // Get package versions
+//! let package_id = PackageId::parse("monolog/monolog").unwrap();
+//! let versions = manager.get_package(&package_id).await?;
+//! println!("Found {} versions of monolog/monolog", versions.len());
+//!
+//! // Check security advisories
+//! let advisories = manager
+//!     .get_security_advisories(&["monolog/monolog".to_string()])
+//!     .await?;
+//! if !advisories.is_empty() {
+//!     println!("Warning: {} security advisories found!", advisories.len());
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Direct Packagist Client
+//!
+//! For simpler use cases, you can use the Packagist client directly:
+//!
+//! ```no_run
+//! use libretto_repository::packagist::{PackagistClient, PackagistConfig};
+//! use libretto_core::PackageId;
+//!
+//! # async fn example() -> libretto_repository::Result<()> {
+//! let client = PackagistClient::new()?;
+//! client.init().await?;
+//!
+//! let package_id = PackageId::parse("symfony/console").unwrap();
+//! let packages = client.get_package(&package_id).await?;
+//!
+//! for pkg in packages.iter().take(5) {
+//!     println!("{} v{}", pkg.id, pkg.version);
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Private Packagist
+//!
+//! ```no_run
+//! use libretto_repository::packagist::{PackagistClient, PackagistConfig};
+//! use url::Url;
+//!
+//! # fn example() -> libretto_repository::Result<()> {
+//! let config = PackagistConfig::private(
+//!     Url::parse("https://repo.private.packagist.com/acme/").unwrap(),
+//!     Url::parse("https://private.packagist.com/acme/").unwrap(),
+//!     "your-api-token".to_string(),
+//! );
+//!
+//! let client = PackagistClient::with_config(config)?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## GitHub Integration
+//!
+//! ```no_run
+//! use libretto_repository::providers::{GitHubClient, GitHubConfig, VcsProvider};
+//! use url::Url;
+//!
+//! # async fn example() -> libretto_repository::Result<()> {
+//! // With authentication for higher rate limits
+//! let config = GitHubConfig::with_token("your-github-token".to_string());
+//! let client = GitHubClient::with_config(config)?;
+//!
+//! // Check rate limit
+//! let rate_limit = client.get_rate_limit().await?;
+//! println!("Remaining: {}/{}", rate_limit.remaining, rate_limit.limit);
+//!
+//! // Fetch composer.json from a repository
+//! let url = Url::parse("https://github.com/symfony/console").unwrap();
+//! let composer_json = client.fetch_composer_json(&url, "main").await?;
+//! # Ok(())
+//! # }
+//! ```
 
 #![deny(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
-use chrono::{DateTime, Utc};
-use dashmap::DashMap;
-use libretto_core::{Dependency, Error, Package, PackageId, Result, Version, VersionConstraint};
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::sync::Arc;
-use std::time::Duration;
-use tracing::{debug, info};
-use url::Url;
+pub mod cache;
+pub mod client;
+pub mod error;
+pub mod manager;
+pub mod packagist;
+pub mod providers;
+pub mod types;
 
-/// Repository configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RepositoryConfig {
-    /// Repository URL.
-    pub url: Url,
-    /// Repository type.
-    #[serde(default)]
-    pub repo_type: RepositoryType,
-    /// Optional authentication.
-    #[serde(default)]
-    pub auth: Option<AuthConfig>,
+// Re-export main types
+pub use cache::{RepositoryCache, RepositoryCacheStats};
+pub use client::{AuthType, HttpClient, HttpClientConfig, HttpClientStats, HttpResponse};
+pub use error::{RepositoryError, Result};
+pub use manager::{ManagerStats, RepositoryManager};
+pub use packagist::{PackagistClient, PackagistConfig, PackagistStats};
+pub use types::{
+    AuthConfig, InlinePackage, PackageSearchResult, PackageVersion, PrioritizedRepository,
+    RepositoryConfig, RepositoryOptions, RepositoryPriority, RepositoryType, Stability,
+};
+
+// Re-export commonly used types from packagist
+pub use packagist::{SearchResult, SecurityAdvisory};
+
+/// Crate version.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Create a default repository manager with Packagist.
+///
+/// # Errors
+/// Returns error if manager cannot be created.
+pub fn default_manager() -> Result<RepositoryManager> {
+    let manager = RepositoryManager::new();
+    manager.add_packagist()?;
+    Ok(manager)
 }
 
-/// Repository type.
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum RepositoryType {
-    /// Composer repository (packagist-compatible).
-    #[default]
-    Composer,
-    /// VCS repository.
-    Vcs,
-    /// Path repository.
-    Path,
+/// Create a Packagist client for packagist.org.
+///
+/// # Errors
+/// Returns error if client cannot be created.
+pub fn packagist() -> Result<PackagistClient> {
+    PackagistClient::new()
 }
 
-/// Authentication configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum AuthConfig {
-    /// HTTP Basic auth.
-    Basic {
-        /// Username.
-        username: String,
-        /// Password.
-        password: String,
-    },
-    /// Bearer token.
-    Bearer {
-        /// Token.
-        token: String,
-    },
-}
-
-/// Cached package metadata.
-#[derive(Debug, Clone)]
-struct CachedPackages {
-    packages: Vec<Package>,
-    fetched_at: DateTime<Utc>,
-}
-
-/// Repository client for fetching package metadata.
-#[derive(Debug)]
-pub struct Repository {
-    config: RepositoryConfig,
-    client: Client,
-    cache: DashMap<String, CachedPackages>,
-    cache_ttl: Duration,
-}
+/// Type alias for backward compatibility with CLI.
+pub type Repository = RepositoryManager;
 
 impl Repository {
-    /// Create new repository client.
+    /// Create a repository with Packagist configured and initialized.
     ///
     /// # Errors
-    /// Returns error if HTTP client cannot be created.
-    pub fn new(config: RepositoryConfig) -> Result<Self> {
-        let mut builder = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .connect_timeout(Duration::from_secs(10))
-            .gzip(true)
-            .brotli(true);
-
-        if let Some(AuthConfig::Bearer { ref token }) = config.auth {
-            let mut headers = reqwest::header::HeaderMap::new();
-            let value = format!("Bearer {token}");
-            headers.insert(
-                reqwest::header::AUTHORIZATION,
-                value
-                    .parse()
-                    .map_err(|_| Error::Config("invalid token".into()))?,
-            );
-            builder = builder.default_headers(headers);
-        }
-
-        let client = builder.build().map_err(|e| Error::Network(e.to_string()))?;
-
-        Ok(Self {
-            config,
-            client,
-            cache: DashMap::new(),
-            cache_ttl: Duration::from_secs(300),
-        })
-    }
-
-    /// Create packagist.org repository.
-    ///
-    /// # Errors
-    /// Returns error if URL is invalid.
+    /// Returns error if Packagist cannot be configured.
     pub fn packagist() -> Result<Self> {
-        Self::new(RepositoryConfig {
-            url: Url::parse("https://repo.packagist.org/")
-                .map_err(|e| Error::Config(e.to_string()))?,
-            repo_type: RepositoryType::Composer,
-            auth: None,
-        })
-    }
-
-    /// Get repository URL.
-    #[must_use]
-    pub fn url(&self) -> &Url {
-        &self.config.url
-    }
-
-    /// Search for packages.
-    ///
-    /// # Errors
-    /// Returns error if search fails.
-    pub async fn search(&self, query: &str) -> Result<Vec<PackageSearchResult>> {
-        let url = format!("{}search.json?q={}", self.config.url, query);
-        debug!(url = %url, "searching packages");
-
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| Error::Network(e.to_string()))?;
-
-        if !response.status().is_success() {
-            return Err(Error::Network(format!("HTTP {}", response.status())));
-        }
-
-        let body = response
-            .bytes()
-            .await
-            .map_err(|e| Error::Network(e.to_string()))?;
-
-        let search: SearchResponse =
-            sonic_rs::from_slice(&body).map_err(libretto_core::Error::from)?;
-
-        Ok(search.results)
-    }
-
-    /// Get package versions.
-    ///
-    /// # Errors
-    /// Returns error if package cannot be fetched.
-    pub async fn get_package(&self, package_id: &PackageId) -> Result<Vec<Package>> {
-        let key = package_id.full_name();
-
-        if let Some(cached) = self.cache.get(&key) {
-            let age = Utc::now() - cached.fetched_at;
-            if age.to_std().unwrap_or(Duration::MAX) < self.cache_ttl {
-                debug!(package = %package_id, "cache hit");
-                return Ok(cached.packages.clone());
-            }
-        }
-
-        let packages = self.fetch_package(package_id).await?;
-
-        self.cache.insert(
-            key,
-            CachedPackages {
-                packages: packages.clone(),
-                fetched_at: Utc::now(),
-            },
-        );
-
-        Ok(packages)
-    }
-
-    /// Find best matching version.
-    ///
-    /// # Errors
-    /// Returns error if no matching version is found.
-    pub async fn find_version(
-        &self,
-        package_id: &PackageId,
-        constraint: &VersionConstraint,
-    ) -> Result<Package> {
-        let packages = self.get_package(package_id).await?;
-
-        packages
-            .into_iter()
-            .filter(|p| constraint.matches(&p.version))
-            .max_by(|a, b| a.version.cmp(&b.version))
-            .ok_or_else(|| Error::VersionNotFound {
-                name: package_id.full_name(),
-                constraint: constraint.to_string(),
-            })
-    }
-
-    async fn fetch_package(&self, package_id: &PackageId) -> Result<Vec<Package>> {
-        let url = format!(
-            "{}p2/{}/{}.json",
-            self.config.url,
-            package_id.vendor(),
-            package_id.name()
-        );
-        debug!(url = %url, "fetching package");
-
-        let response = self
-            .client
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| Error::Network(e.to_string()))?;
-
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            return Err(Error::PackageNotFound {
-                name: package_id.full_name(),
-            });
-        }
-
-        if !response.status().is_success() {
-            return Err(Error::Network(format!("HTTP {}", response.status())));
-        }
-
-        let body = response
-            .bytes()
-            .await
-            .map_err(|e| Error::Network(e.to_string()))?;
-
-        let pkg_response: PackageResponse =
-            sonic_rs::from_slice(&body).map_err(libretto_core::Error::from)?;
-
-        let key = package_id.full_name();
-        let versions = pkg_response.packages.get(&key).cloned().unwrap_or_default();
-
-        info!(
-            package = %package_id,
-            versions = versions.len(),
-            "fetched package"
-        );
-
-        Ok(versions
-            .into_iter()
-            .filter_map(|v| convert_package_version(package_id, v))
-            .collect())
-    }
-}
-
-/// Package search result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PackageSearchResult {
-    /// Package name.
-    pub name: String,
-    /// Description.
-    #[serde(default)]
-    pub description: String,
-    /// Download count.
-    #[serde(default)]
-    pub downloads: u64,
-}
-
-#[derive(Debug, Deserialize)]
-struct SearchResponse {
-    results: Vec<PackageSearchResult>,
-}
-
-#[derive(Debug, Deserialize)]
-struct PackageResponse {
-    packages: HashMap<String, Vec<PackageVersion>>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct PackageVersion {
-    version: String,
-    #[serde(default)]
-    description: String,
-    #[serde(default)]
-    require: HashMap<String, String>,
-    #[serde(default, rename = "require-dev")]
-    require_dev: HashMap<String, String>,
-    dist: Option<DistInfo>,
-    source: Option<SourceInfo>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct DistInfo {
-    url: String,
-    #[serde(rename = "type")]
-    archive_type: String,
-    shasum: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-struct SourceInfo {
-    url: String,
-    reference: String,
-}
-
-fn convert_package_version(package_id: &PackageId, v: PackageVersion) -> Option<Package> {
-    let version_str = v.version.trim_start_matches('v');
-    let version = Version::parse(version_str).ok()?;
-
-    let mut pkg = Package::new(package_id.clone(), version);
-    pkg.description = v.description;
-
-    for (name, constraint) in v.require {
-        if let Some(dep_id) = PackageId::parse(&name) {
-            pkg.require
-                .push(Dependency::new(dep_id, VersionConstraint::new(constraint)));
-        }
-    }
-
-    for (name, constraint) in v.require_dev {
-        if let Some(dep_id) = PackageId::parse(&name) {
-            pkg.require_dev
-                .push(Dependency::dev(dep_id, VersionConstraint::new(constraint)));
-        }
-    }
-
-    if let Some(dist) = v.dist {
-        if let Ok(url) = Url::parse(&dist.url) {
-            pkg.dist = Some(libretto_core::PackageSource::Dist {
-                url,
-                archive_type: dist.archive_type,
-                shasum: dist.shasum,
-            });
-        }
-    }
-
-    if let Some(source) = v.source {
-        if let Ok(url) = Url::parse(&source.url) {
-            pkg.source = Some(libretto_core::PackageSource::Git {
-                url,
-                reference: source.reference,
-            });
-        }
-    }
-
-    Some(pkg)
-}
-
-/// Repository manager for multiple repositories.
-#[derive(Debug, Default)]
-pub struct RepositoryManager {
-    repositories: Vec<Arc<Repository>>,
-}
-
-impl RepositoryManager {
-    /// Create new manager.
-    #[must_use]
-    pub fn new() -> Self {
-        Self {
-            repositories: Vec::new(),
-        }
-    }
-
-    /// Add repository.
-    pub fn add(&mut self, repo: Repository) {
-        self.repositories.push(Arc::new(repo));
-    }
-
-    /// Get all repositories.
-    #[must_use]
-    pub fn repositories(&self) -> &[Arc<Repository>] {
-        &self.repositories
-    }
-
-    /// Search across all repositories.
-    ///
-    /// # Errors
-    /// Returns error if search fails.
-    pub async fn search(&self, query: &str) -> Result<Vec<PackageSearchResult>> {
-        let mut results = Vec::new();
-        for repo in &self.repositories {
-            match repo.search(query).await {
-                Ok(r) => results.extend(r),
-                Err(e) => debug!(error = %e, "search failed"),
-            }
-        }
-        Ok(results)
-    }
-
-    /// Find package in repositories.
-    ///
-    /// # Errors
-    /// Returns error if package not found in any repository.
-    pub async fn find_package(
-        &self,
-        package_id: &PackageId,
-        constraint: &VersionConstraint,
-    ) -> Result<Package> {
-        for repo in &self.repositories {
-            match repo.find_version(package_id, constraint).await {
-                Ok(pkg) => return Ok(pkg),
-                Err(Error::PackageNotFound { .. } | Error::VersionNotFound { .. }) => continue,
-                Err(e) => return Err(e),
-            }
-        }
-
-        Err(Error::PackageNotFound {
-            name: package_id.full_name(),
-        })
+        default_manager()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use libretto_core::PackageId;
 
     #[test]
-    fn repository_config() {
-        let config = RepositoryConfig {
-            url: Url::parse("https://example.com").unwrap(),
-            repo_type: RepositoryType::Composer,
-            auth: None,
-        };
-        assert_eq!(config.repo_type, RepositoryType::Composer);
+    fn test_version() {
+        assert!(!VERSION.is_empty());
     }
 
     #[test]
-    fn manager_default() {
-        let manager = RepositoryManager::new();
-        assert!(manager.repositories().is_empty());
+    fn test_default_manager() {
+        let manager = default_manager().unwrap();
+        assert_eq!(manager.repository_count(), 1);
+    }
+
+    #[test]
+    fn test_packagist_client() {
+        let client = packagist().unwrap();
+        assert_eq!(client.repo_url().host_str(), Some("repo.packagist.org"));
+    }
+
+    #[tokio::test]
+    async fn test_stability_filtering() {
+        let manager = default_manager().unwrap();
+
+        // Default should be stable
+        assert_eq!(manager.minimum_stability(), Stability::Stable);
+
+        // Can change stability
+        manager.set_minimum_stability(Stability::Dev);
+        assert_eq!(manager.minimum_stability(), Stability::Dev);
     }
 }

@@ -16,6 +16,7 @@ path = "src/main.rs"
 workspace = true
 
 [dependencies]
+# Internal crates
 libretto-core = { workspace = true }
 libretto-platform = { workspace = true }
 libretto-cache = { workspace = true }
@@ -27,13 +28,51 @@ libretto-vcs = { workspace = true }
 libretto-autoloader = { workspace = true }
 libretto-plugin-system = { workspace = true }
 libretto-audit = { workspace = true }
-clap = { workspace = true }
+libretto-lockfile = { workspace = true }
+
+# CLI framework
+clap = { workspace = true, features = ["derive", "env", "unicode", "wrap_help", "string", "color"] }
+clap_complete = "4.5"
+
+# Async runtime
 tokio = { workspace = true }
+
+# Logging
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+# Terminal UI
 console = { workspace = true }
 indicatif = { workspace = true }
+comfy-table = { workspace = true }
+dialoguer = { workspace = true }
+owo-colors = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+miette = { workspace = true }
+thiserror = { workspace = true }
+
+# Serialization
 serde = { workspace = true }
 sonic-rs = { workspace = true }
-anyhow = { workspace = true }
+
+# Version handling
 semver = { workspace = true }
+
+# Utilities
+chrono = { workspace = true }
+url = { workspace = true }
+directories = { workspace = true }
+walkdir = { workspace = true }
+tempfile = { workspace = true }
+once_cell = { workspace = true }
+regex = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+# Archive handling
+zip = { workspace = true }
+tar = { workspace = true }
+flate2 = { workspace = true }
