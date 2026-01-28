@@ -30,6 +30,9 @@ once_cell = { workspace = true }
 pubgrub = { package = "astral-pubgrub", version = "0.3" }
 version-ranges = { package = "astral-version-ranges", version = "0.1" }
 
+# Async utilities
+futures = { workspace = true }
+
 # Arena allocation for temporary data
 bumpalo = { version = "3.16", features = ["collections"] }
 

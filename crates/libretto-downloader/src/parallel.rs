@@ -9,16 +9,16 @@ use crate::config::{AuthConfig, DownloadConfig, ExpectedChecksum};
 use crate::error::{DownloadError, Result};
 use crate::extract::Extractor;
 use crate::progress::{DownloadProgress, ProgressTracker};
-use crate::retry::{with_retry, CircuitBreaker, RetryConfig};
+use crate::retry::{CircuitBreaker, RetryConfig, with_retry};
 use crate::source::{ArchiveType, DownloadResult, DownloadSource, Source, SourceType};
 use crate::stream::StreamDownloader;
 use crate::throttle::BandwidthThrottler;
-use crate::vcs::{copy_path, GitHandler, HgHandler, SvnHandler};
+use crate::vcs::{GitHandler, HgHandler, SvnHandler, copy_path};
 use dashmap::DashMap;
 use futures_util::stream::{self, StreamExt};
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use tokio::sync::Semaphore;
 use tracing::{error, info, warn};
 
@@ -179,7 +179,22 @@ impl ParallelDownloader {
         self.stats.total_packages.store(total, Ordering::Relaxed);
         self.progress.set_total(total);
 
-        info!(count = total, "starting parallel downloads");
+        info!(
+            count = total,
+            max_concurrent = self.config.max_concurrent,
+            "starting parallel downloads"
+        );
+
+        // Log first few sources for debugging
+        for (i, source) in sources.iter().take(3).enumerate() {
+            info!(
+                idx = i,
+                name = %source.name,
+                version = %source.version,
+                dest = %source.dest.display(),
+                "download source"
+            );
+        }
 
         let results: Vec<_> = stream::iter(sources)
             .map(|source| self.download_source(source))
@@ -201,21 +216,45 @@ impl ParallelDownloader {
         results
     }
 
-    /// Download a single package source.
+    /// Download a single package source with wall-clock timeout.
     async fn download_source(
         &self,
         source: DownloadSource,
     ) -> std::result::Result<DownloadResult, DownloadError> {
+        let timeout = self.config.per_package_timeout;
+
+        // Wrap entire download in a timeout to prevent indefinite hangs
+        match tokio::time::timeout(timeout, self.download_source_with_permit(source)).await {
+            Ok(result) => result,
+            Err(_) => {
+                error!("package download timed out after {:?}", timeout);
+                Err(DownloadError::Timeout(format!(
+                    "package download exceeded wall-clock limit of {:?}",
+                    timeout
+                )))
+            }
+        }
+    }
+
+    /// Inner download with semaphore permit management.
+    async fn download_source_with_permit(
+        &self,
+        source: DownloadSource,
+    ) -> std::result::Result<DownloadResult, DownloadError> {
+        info!(package = %source.name, "acquiring semaphore permit");
         let _permit = self
             .semaphore
             .acquire()
             .await
             .map_err(|_| DownloadError::Cancelled)?;
+        info!(package = %source.name, "acquired semaphore permit");
 
         let id = source.id();
         let progress = self.progress.start_download(&id, &source.name, None);
 
+        info!(package = %source.name, "starting download_source_inner");
         let result = self.download_source_inner(&source, &progress).await;
+        info!(package = %source.name, success = result.is_ok(), "finished download_source_inner");
 
         match &result {
             Ok(r) => {
@@ -244,10 +283,17 @@ impl ParallelDownloader {
     ) -> Result<DownloadResult> {
         // Try each source in order (primary + fallbacks)
         let mut last_error = None;
+        let sources: Vec<_> = source.all_sources().collect();
 
-        for src in source.all_sources() {
+        info!(package = %source.name, sources_count = sources.len(), "trying download sources");
+
+        for (idx, src) in sources.iter().enumerate() {
+            info!(package = %source.name, idx, source_type = ?src.source_type(), "trying source");
             match self.download_from_source(src, source, progress).await {
-                Ok(result) => return Ok(result),
+                Ok(result) => {
+                    info!(package = %source.name, "download succeeded");
+                    return Ok(result);
+                }
                 Err(e) => {
                     warn!(
                         package = %source.name,
@@ -272,6 +318,11 @@ impl ParallelDownloader {
         download_source: &DownloadSource,
         progress: &DownloadProgress,
     ) -> Result<DownloadResult> {
+        // Check circuit breaker early for dist sources to fail fast
+        if let Source::Dist { url, .. } = src {
+            self.check_circuit_breaker(url)?;
+        }
+
         match src {
             Source::Dist { url, archive_type } => {
                 self.download_dist(
@@ -328,6 +379,19 @@ impl ParallelDownloader {
         }
     }
 
+    /// Check circuit breaker before attempting download (called before semaphore acquire).
+    fn check_circuit_breaker(&self, url: &url::Url) -> Result<()> {
+        let host = url.host_str().unwrap_or("unknown").to_string();
+        let cb = self.circuit_breakers.entry(host.clone()).or_default();
+
+        if cb.is_open() {
+            return Err(DownloadError::network(format!(
+                "circuit breaker open for {host}"
+            )));
+        }
+        Ok(())
+    }
+
     /// Download a dist archive.
     #[allow(clippy::too_many_arguments)]
     async fn download_dist(
@@ -340,19 +404,17 @@ impl ParallelDownloader {
         version: &str,
         progress: &DownloadProgress,
     ) -> Result<DownloadResult> {
-        // Check circuit breaker for this host
+        info!(package = %name, url = %url, "download_dist starting");
+
+        // Get host for circuit breaker tracking
         let host = url.host_str().unwrap_or("unknown").to_string();
         let cb = self.circuit_breakers.entry(host.clone()).or_default();
-
-        if cb.is_open() {
-            return Err(DownloadError::network(format!(
-                "circuit breaker open for {host}"
-            )));
-        }
 
         // Create temp file for archive
         let archive_ext = archive_type.extension();
         let archive_path = dest.with_extension(format!("download{archive_ext}"));
+
+        info!(package = %name, archive_path = %archive_path.display(), "starting download with retry");
 
         // Download with retry
         let download_result = with_retry(&self.retry_config, || {
@@ -364,20 +426,24 @@ impl ParallelDownloader {
         let downloaded = match download_result {
             Ok(d) => {
                 cb.record_success();
+                info!(package = %name, size = d.size, "download completed");
                 d
             }
             Err(e) => {
                 cb.record_failure();
+                error!(package = %name, error = %e, "download failed");
                 return Err(e);
             }
         };
 
         // Verify checksums
         if !checksums.is_empty() && self.config.verify_checksum {
+            info!(package = %name, "verifying checksums");
             downloaded.verify(checksums, name)?;
         }
 
         // Extract archive
+        info!(package = %name, dest = %dest.display(), "extracting archive");
         let extract_dest = dest;
         self.extractor
             .extract(&archive_path, extract_dest)
@@ -385,11 +451,14 @@ impl ParallelDownloader {
             .map_err(|e| {
                 // Clean up archive on extraction failure
                 let _ = std::fs::remove_file(&archive_path);
+                error!(package = %name, error = %e, "extraction failed");
                 e
             })?;
 
         // Remove archive after extraction
         let _ = std::fs::remove_file(&archive_path);
+
+        info!(package = %name, "download_dist complete");
 
         Ok(DownloadResult {
             name: name.to_string(),
@@ -599,8 +668,23 @@ impl ParallelDownloaderBuilder {
     }
 }
 
-/// Calculate directory size recursively.
+/// Calculate directory size recursively with timeout.
+/// Returns 0 if timeout is exceeded to avoid blocking.
 async fn dir_size(path: &Path) -> Result<u64> {
+    // Use a 10-second timeout to prevent hanging on large directories
+    const DIR_SIZE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+    match tokio::time::timeout(DIR_SIZE_TIMEOUT, dir_size_inner(path)).await {
+        Ok(result) => result,
+        Err(_) => {
+            warn!(path = %path.display(), "dir_size timed out, returning 0");
+            Ok(0)
+        }
+    }
+}
+
+/// Inner directory size calculation.
+async fn dir_size_inner(path: &Path) -> Result<u64> {
     if path.is_file() {
         let metadata = tokio::fs::metadata(path)
             .await
@@ -627,7 +711,7 @@ async fn dir_size(path: &Path) -> Result<u64> {
         if metadata.is_file() {
             total += metadata.len();
         } else if metadata.is_dir() {
-            total += Box::pin(dir_size(&entry_path)).await.unwrap_or(0);
+            total += Box::pin(dir_size_inner(&entry_path)).await.unwrap_or(0);
         }
     }
 

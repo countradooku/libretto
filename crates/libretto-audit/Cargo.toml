@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 libretto-core = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["fs", "process"] }
 reqwest = { workspace = true }
 serde = { workspace = true }
 sonic-rs = { workspace = true }
@@ -21,3 +21,50 @@ semver = { workspace = true }
 tracing = { workspace = true }
 chrono = { workspace = true }
 url = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+ahash = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+blake3 = { workspace = true }
+
+# Cryptography
+hex = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+sha1 = { workspace = true }
+subtle = { workspace = true }
+ed25519-dalek = { workspace = true }
+sequoia-openpgp = { workspace = true }
+
+# Credential management
+keyring = { workspace = true }
+dialoguer = { workspace = true }
+zeroize = { workspace = true }
+
+# File operations
+tempfile = { workspace = true }
+walkdir = { workspace = true }
+
+# Platform-specific
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true }
+libc = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.8"
+criterion = { version = "0.5", features = ["async_tokio"] }
+tracing-subscriber = { workspace = true }
+serde_json = { workspace = true }
+
+[[bench]]
+name = "integrity_bench"
+harness = false
+
+[[bench]]
+name = "advisory_bench"
+harness = false

@@ -8,9 +8,9 @@ use crate::package::{Dependency, PackageName};
 use crate::provider::{ComposerProvider, ProviderConfig, ProviderError, ResolutionMode};
 use crate::version::{ComposerVersion, Stability};
 use ahash::{AHashMap, AHashSet};
-use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::Direction;
-use pubgrub::{resolve, DefaultStringReporter, PubGrubError, Reporter};
+use petgraph::graph::{DiGraph, NodeIndex};
+use pubgrub::{DefaultStringReporter, PubGrubError, Reporter, resolve};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
@@ -56,6 +56,18 @@ pub struct ResolvedPackage {
     pub dependencies: Vec<PackageName>,
     /// Is this a dev dependency.
     pub is_dev: bool,
+    /// Distribution URL for downloading.
+    pub dist_url: Option<String>,
+    /// Distribution type (zip, tar, etc.).
+    pub dist_type: Option<String>,
+    /// Distribution checksum.
+    pub dist_shasum: Option<String>,
+    /// Source URL (git repository).
+    pub source_url: Option<String>,
+    /// Source type (git, hg, etc.).
+    pub source_type: Option<String>,
+    /// Source reference (commit/tag).
+    pub source_reference: Option<String>,
 }
 
 /// Result of dependency resolution.
@@ -388,12 +400,7 @@ impl<S: PackageSource + 'static> Resolver<S> {
             }
         }
 
-        // Check for cycles
-        if let Some(cycle) = self.find_cycle(&graph, &indices) {
-            return Err(ResolveError::CircularDependency { cycle });
-        }
-
-        // Topological sort
+        // Topological sort (with cycle handling)
         let packages = self.topological_sort(&graph, &indices, packages_map, root_dev_deps)?;
 
         // Get platform packages
@@ -412,60 +419,7 @@ impl<S: PackageSource + 'static> Resolver<S> {
         })
     }
 
-    /// Find a cycle in the graph.
-    fn find_cycle(
-        &self,
-        graph: &DiGraph<PackageName, ()>,
-        indices: &AHashMap<String, NodeIndex>,
-    ) -> Option<String> {
-        let mut visited = AHashSet::new();
-        let mut rec_stack = AHashSet::new();
-        let mut path = Vec::new();
-
-        for &start in indices.values() {
-            if self.find_cycle_dfs(graph, start, &mut visited, &mut rec_stack, &mut path) {
-                return Some(
-                    path.iter()
-                        .map(|&n| graph[n].as_str())
-                        .collect::<Vec<_>>()
-                        .join(" -> "),
-                );
-            }
-        }
-
-        None
-    }
-
-    fn find_cycle_dfs(
-        &self,
-        graph: &DiGraph<PackageName, ()>,
-        node: NodeIndex,
-        visited: &mut AHashSet<NodeIndex>,
-        rec_stack: &mut AHashSet<NodeIndex>,
-        path: &mut Vec<NodeIndex>,
-    ) -> bool {
-        visited.insert(node);
-        rec_stack.insert(node);
-        path.push(node);
-
-        for neighbor in graph.neighbors(node) {
-            if !visited.contains(&neighbor) {
-                if self.find_cycle_dfs(graph, neighbor, visited, rec_stack, path) {
-                    return true;
-                }
-            } else if rec_stack.contains(&neighbor) {
-                // Found cycle
-                path.push(neighbor);
-                return true;
-            }
-        }
-
-        path.pop();
-        rec_stack.remove(&node);
-        false
-    }
-
-    /// Perform topological sort.
+    /// Perform topological sort with cycle breaking.
     fn topological_sort(
         &self,
         graph: &DiGraph<PackageName, ()>,
@@ -487,52 +441,66 @@ impl<S: PackageSource + 'static> Resolver<S> {
         // Start with nodes that have no incoming edges
         let mut queue: Vec<NodeIndex> = in_degree
             .iter()
-            .filter(|(_, &deg)| deg == 0)
+            .filter(|(_, deg)| **deg == 0)
             .map(|(&idx, _)| idx)
             .collect();
 
-        while let Some(idx) = queue.pop() {
-            let name = &graph[idx];
-            let key = name.as_str();
-
-            if let Some((pkg_name, version)) = packages_map.remove(key) {
-                // Get dependencies (incoming edges point from dependencies to this package)
-                let deps: Vec<PackageName> = graph
-                    .neighbors_directed(idx, Direction::Incoming)
-                    .map(|n| graph[n].clone())
-                    .collect();
-
-                // Check if this is a dev dependency (directly required as dev, or only reachable via dev deps)
-                let is_dev = root_dev_deps.contains(key);
-
-                result.push(ResolvedPackage {
-                    name: pkg_name,
-                    version,
-                    dependencies: deps,
-                    is_dev,
-                });
+        // Process until all nodes are handled
+        while !in_degree.is_empty() {
+            // If queue is empty but nodes remain, we have a cycle. Break it.
+            if queue.is_empty() {
+                // Heuristic: pick node with lowest in-degree (fewest dependencies blocking it)
+                if let Some((idx, _)) = in_degree.iter().min_by_key(|(_, d)| *d) {
+                    queue.push(*idx);
+                } else {
+                    break; // Should not happen if in_degree is not empty
+                }
             }
 
-            // Update in-degrees
-            for neighbor in graph.neighbors(idx) {
-                if let Some(deg) = in_degree.get_mut(&neighbor) {
-                    *deg = deg.saturating_sub(1);
-                    if *deg == 0 {
-                        queue.push(neighbor);
+            while let Some(idx) = queue.pop() {
+                // Remove from in_degree to mark as processed
+                // If already removed, skip (handle potential duplicates if any)
+                if in_degree.remove(&idx).is_none() {
+                    continue;
+                }
+
+                let name = &graph[idx];
+                let key = name.as_str();
+
+                if let Some((pkg_name, version)) = packages_map.remove(key) {
+                    let deps: Vec<PackageName> = graph
+                        .neighbors_directed(idx, Direction::Incoming)
+                        .filter_map(|n| graph.node_weight(n).cloned())
+                        .collect();
+
+                    let is_dev = root_dev_deps.contains(key);
+
+                    result.push(ResolvedPackage {
+                        name: pkg_name,
+                        version,
+                        dependencies: deps,
+                        is_dev,
+                        dist_url: None,
+                        dist_type: None,
+                        dist_shasum: None,
+                        source_url: None,
+                        source_type: None,
+                        source_reference: None,
+                    });
+                }
+
+                // Decrement in-degree of neighbors (dependents)
+                for neighbor in graph.neighbors_directed(idx, Direction::Outgoing) {
+                    if let Some(deg) = in_degree.get_mut(&neighbor) {
+                        if *deg > 0 {
+                            *deg -= 1;
+                            if *deg == 0 {
+                                queue.push(neighbor);
+                            }
+                        }
                     }
                 }
             }
-        }
-
-        // Add any remaining packages (shouldn't happen if no cycles)
-        for (_, (name, version)) in packages_map {
-            let is_dev = root_dev_deps.contains(name.as_str());
-            result.push(ResolvedPackage {
-                name,
-                version,
-                dependencies: Vec::new(),
-                is_dev,
-            });
         }
 
         Ok(result)
@@ -553,7 +521,7 @@ fn is_platform_package(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{index::MemorySource, ComposerConstraint};
+    use crate::{ComposerConstraint, index::MemorySource};
 
     fn create_test_resolver() -> Resolver<MemorySource> {
         let source = MemorySource::new();

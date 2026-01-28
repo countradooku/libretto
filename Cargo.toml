@@ -19,9 +19,9 @@ members = [
 
 [workspace.package]
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.75"
-license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
 repository = "https://github.com/libretto-pm/libretto"
 authors = ["Libretto Contributors"]
 keywords = ["composer", "package-manager", "php", "dependency"]
@@ -71,6 +71,7 @@ anyhow = "1.0"
 # JSON (high-performance)
 sonic-rs = "0.3"
 serde = { version = "1.0", features = ["derive", "rc"] }
+serde_json = "1.0"
 
 # HTTP client
 reqwest = { version = "0.12", default-features = false, features = [
@@ -177,6 +178,18 @@ futures = "0.3"
 
 # Bytes
 bytes = "1.5"
+
+# Cryptography and security (additional)
+hex = "0.4"
+base64 = "0.22"
+subtle = "2.5"
+ed25519-dalek = { version = "2.1", features = ["std", "rand_core"] }
+sequoia-openpgp = { version = "1.20", default-features = false, features = ["crypto-rust", "allow-experimental-crypto", "allow-variable-time-crypto"] }
+keyring = "2.3"
+zeroize = "1.7"
+rustix = { version = "0.38", features = ["fs"] }
+libc = "0.2"
+windows = { version = "0.52", features = ["Win32_Storage_FileSystem", "Win32_Security"] }
 
 # Once cell
 once_cell = "1.19"

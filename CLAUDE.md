@@ -244,3 +244,91 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs:
 - Use `DashMap` for concurrent access patterns
 - Consider `rkyv` for cached data structures
 - BLAKE3 for fast hashing (SIMD-accelerated)
+
+## Performance Optimizations (pnpm-inspired)
+
+Libretto implements several advanced optimizations for maximum performance:
+
+### 1. Content-Addressable Storage (CAS) Cache
+
+**Location**: `~/.libretto/cache/cas/`
+
+Like pnpm, packages are stored once globally using content-addressable storage:
+- Each package URL is hashed to create a unique cache key
+- Extracted package contents are stored in the CAS cache
+- Subsequent installs use hardlinks from cache to `vendor/`
+- **Benefits**: 
+  - Instant installs on cache hits (just create hardlinks)
+  - Massive disk space savings (files stored once across all projects)
+  - Safe: hardlinks maintain file integrity
+
+**Implementation**: `crates/libretto-cli/src/cas_cache.rs`
+
+### 2. HTTP/2 Multiplexing
+
+**Configuration**: `crates/libretto-downloader/src/client.rs`
+
+Aggressive HTTP/2 settings for maximum throughput:
+- Automatic protocol negotiation (ALPN) with fallback to HTTP/1.1
+- Adaptive flow control windows: 4MB per stream, 8MB per connection
+- HTTP/2 keep-alive with 15s interval to maintain connections
+- Up to 100 idle connections per host for connection reuse
+- **Benefits**: 
+  - Multiple parallel requests over single TCP connection
+  - Reduced connection overhead and latency
+  - Better performance on high-bandwidth networks
+
+**Settings**:
+```rust
+.pool_max_idle_per_host(100)
+.http2_adaptive_window(true)
+.http2_initial_stream_window_size(4 * 1024 * 1024)
+.http2_initial_connection_window_size(8 * 1024 * 1024)
+.http2_keep_alive_interval(Duration::from_secs(15))
+```
+
+### 3. Adaptive Concurrency
+
+**Formula**: `(CPU cores × 8).clamp(32, 128)`
+
+Examples:
+- 4 cores → 32 concurrent downloads
+- 8 cores → 64 concurrent downloads
+- 16 cores → 128 concurrent downloads (max)
+
+Unlike Composer's fixed 12 concurrent downloads, Libretto scales with hardware:
+- Automatically detects CPU core count
+- Scales to 8× cores (more aggressive than pnpm's 4×)
+- Minimum 32, maximum 128 concurrent downloads
+- **Benefits**: 
+  - Saturates high-bandwidth connections
+  - Optimal CPU utilization
+  - Faster installs on powerful machines
+
+**Implementation**: `crates/libretto-cli/src/commands/install.rs`
+
+### 4. Performance Comparison vs Composer
+
+Expected improvements:
+- **Cold cache**: 3-5× faster (HTTP/2 + high concurrency)
+- **Warm cache**: 10-100× faster (hardlinks are instant)
+- **Disk usage**: 50-70% reduction (shared CAS cache)
+- **Network**: Better utilization through HTTP/2 multiplexing
+
+### 5. Optimization Checklist
+
+When adding new download code:
+- ✅ Use the CAS cache via `cas_cache::get_cached_path()` and `cas_cache::store_in_cache()`
+- ✅ Build HTTP clients with HTTP/2 multiplexing enabled
+- ✅ Use adaptive concurrency based on CPU cores
+- ✅ Implement hardlinks for cache-to-vendor transfers
+- ✅ Add content hash verification for integrity
+- ✅ Use connection pooling and keep-alive
+
+### 6. Monitoring Performance
+
+Key metrics to watch:
+- Cache hit rate: `cached_count / total_packages`
+- Download throughput: `total_bytes / elapsed_time`
+- Concurrency utilization: `active_downloads / max_concurrent`
+- HTTP/2 efficiency: Check if multiplexing is being used

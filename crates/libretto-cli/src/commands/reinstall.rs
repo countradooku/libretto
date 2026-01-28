@@ -110,7 +110,16 @@ pub async fn run(args: ReinstallArgs) -> Result<()> {
         prefer_source: args.prefer_source,
         dry_run: false,
         ignore_platform_reqs: false,
+        ignore_platform_req: vec![],
         optimize_autoloader: false,
+        classmap_authoritative: false,
+        apcu_autoloader: false,
+        no_scripts: false,
+        prefer_lowest: false,
+        prefer_stable: true,
+        minimum_stability: None,
+        no_progress: false,
+        concurrency: 64,
     };
 
     spinner.finish_and_clear();

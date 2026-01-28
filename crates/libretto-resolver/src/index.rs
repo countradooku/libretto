@@ -11,8 +11,8 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use rayon::prelude::*;
 use smallvec::SmallVec;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tracing::{debug, trace};
 
@@ -586,10 +586,28 @@ impl MemorySource {
         }
     }
 
-    /// Add a package entry.
+    /// Add a package entry, merging with an existing entry if present.
     pub fn add(&self, entry: PackageEntry) {
         let key = Arc::from(entry.name.as_str());
-        self.packages.write().insert(key, entry);
+        let mut packages = self.packages.write();
+
+        if let Some(existing) = packages.get_mut(&key) {
+            // Merge versions from new entry into existing
+            for version in entry.versions {
+                // Only add if this version doesn't already exist
+                if !existing
+                    .versions
+                    .iter()
+                    .any(|v| v.version == version.version)
+                {
+                    existing.add_version(version);
+                }
+            }
+            existing.sort_versions();
+        } else {
+            // No existing entry, just insert
+            packages.insert(key, entry);
+        }
     }
 
     /// Add a simple package version.

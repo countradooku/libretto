@@ -76,3 +76,9 @@ reqwest = { workspace = true }
 zip = { workspace = true }
 tar = { workspace = true }
 flate2 = { workspace = true }
+
+# Parallelism
+rayon = { workspace = true }
+futures = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }

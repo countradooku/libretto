@@ -186,7 +186,6 @@ impl Repository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libretto_core::PackageId;
 
     #[test]
     fn test_version() {

@@ -3,12 +3,13 @@
 //! Provides unified styling, progress bars, tables, and interactive prompts
 //! with support for TTY detection, NO_COLOR environment variable, and
 //! graceful degradation to ASCII when Unicode is not supported.
+//!
+//! These utilities provide a complete UI toolkit for CLI commands.
 
-// Allow dead code in this module as these are utility functions
-// that may not all be used yet but are provided for future use
 #![allow(dead_code)]
 
 pub mod colors;
+pub mod live;
 pub mod progress;
 pub mod prompt;
 pub mod style;
@@ -17,7 +18,7 @@ pub mod table;
 pub use style::{Icon, OutputMode, Theme};
 
 use once_cell::sync::Lazy;
-use std::io::{stderr, stdout, IsTerminal};
+use std::io::{IsTerminal, stderr, stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Global color configuration

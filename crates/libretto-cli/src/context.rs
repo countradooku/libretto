@@ -1,6 +1,9 @@
 //! CLI context for shared state across commands.
+//!
+//! This module provides context utilities (Timer, profiling, etc.) that are
+//! designed for use across all CLI commands. Some utilities may not be used
+//! yet but are kept for completeness and future use.
 
-// Allow dead code as these utilities may not all be used yet
 #![allow(dead_code)]
 
 use crate::output::{OutputMode, Theme};

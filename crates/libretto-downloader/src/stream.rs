@@ -70,11 +70,16 @@ impl StreamDownloader {
         checksums: &[ExpectedChecksum],
         progress: &DownloadProgress,
     ) -> Result<DownloadedFile> {
+        debug!(url = %url, dest = %dest.display(), "StreamDownloader::download starting");
+
         // Check for existing partial download
         let mut state = self.check_partial_download(dest);
 
         // Get content info
+        debug!(url = %url, "getting content info (HEAD request)");
         let (total_size, resume_supported) = self.get_content_info(url).await?;
+        debug!(url = %url, total_size = ?total_size, resume_supported, "got content info");
+
         state.total_size = total_size;
         state.resume_supported = resume_supported && self.config.resume_downloads;
 
@@ -87,17 +92,23 @@ impl StreamDownloader {
             .map(|s| s >= self.config.mmap_threshold)
             .unwrap_or(false);
 
+        debug!(url = %url, use_mmap, state_downloaded = state.downloaded, "choosing download strategy");
+
         let result = if use_mmap && state.resume_supported {
+            debug!(url = %url, "using mmap download");
             self.download_mmap(url, dest, &state, checksums, progress)
                 .await
         } else if state.downloaded > 0 && state.resume_supported {
+            debug!(url = %url, "using resume download");
             self.download_resume(url, dest, &state, checksums, progress)
                 .await
         } else {
+            debug!(url = %url, "using streaming download");
             self.download_streaming(url, dest, checksums, progress)
                 .await
         };
 
+        debug!(url = %url, success = result.is_ok(), "StreamDownloader::download finished");
         result
     }
 
@@ -283,7 +294,7 @@ impl StreamDownloader {
         checksums: &[ExpectedChecksum],
         progress: &DownloadProgress,
     ) -> Result<DownloadedFile> {
-        debug!(url = %url, "streaming download");
+        debug!(url = %url, "streaming download starting");
 
         // Create temp file in same directory for atomic move
         let parent = dest.parent().unwrap_or(Path::new("."));
@@ -298,18 +309,24 @@ impl StreamDownloader {
                 .map_err(|e| DownloadError::io(&temp_path, e))?,
         );
 
+        debug!(url = %url, "sending GET request");
         let response = self.client.get(url).await?;
+        debug!(url = %url, status = %response.status(), "got response");
 
         if let Some(size) = response.content_length() {
+            debug!(url = %url, content_length = size, "got content length");
             progress.set_total(size);
         }
 
         let mut stream = response.bytes_stream();
         let mut downloaded: u64 = 0;
         let mut hasher = MultiHasher::for_checksums(checksums);
+        let mut chunk_count = 0u64;
 
+        debug!(url = %url, "starting to read chunks");
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(DownloadError::from_reqwest)?;
+            chunk_count += 1;
 
             self.throttler.acquire(chunk.len()).await;
 
@@ -320,7 +337,13 @@ impl StreamDownloader {
 
             downloaded += chunk.len() as u64;
             progress.update(downloaded);
+
+            if chunk_count % 100 == 0 {
+                trace!(url = %url, chunks = chunk_count, bytes = downloaded, "download progress");
+            }
         }
+
+        debug!(url = %url, total_chunks = chunk_count, total_bytes = downloaded, "finished reading chunks");
 
         file.flush()
             .await
@@ -328,11 +351,14 @@ impl StreamDownloader {
         drop(file);
 
         // Atomically move to destination
+        debug!(url = %url, dest = %dest.display(), "moving temp file to destination");
         temp_file
             .persist(dest)
             .map_err(|e| DownloadError::io(dest, e.error))?;
 
         let checksums_result = hasher.finalize();
+
+        debug!(url = %url, size = downloaded, "streaming download complete");
 
         Ok(DownloadedFile {
             path: dest.to_path_buf(),
@@ -360,8 +386,21 @@ impl StreamDownloader {
 
     /// Get content length and resume support from HEAD request.
     async fn get_content_info(&self, url: &Url) -> Result<(Option<u64>, bool)> {
-        match self.client.head(url).await {
-            Ok(response) => {
+        // Skip HEAD request for codeload.github.com - it doesn't return content-length
+        // and can cause HTTP/2 connection issues with many concurrent requests
+        if let Some(host) = url.host_str() {
+            if host == "codeload.github.com" {
+                debug!(url = %url, "skipping HEAD request for codeload.github.com");
+                return Ok((None, false));
+            }
+        }
+
+        // Use a timeout for HEAD requests to avoid hanging
+        let head_future = self.client.head(url);
+        let timeout_duration = std::time::Duration::from_secs(5);
+
+        match tokio::time::timeout(timeout_duration, head_future).await {
+            Ok(Ok(response)) => {
                 let size = response.content_length();
                 let resume = response
                     .headers()
@@ -370,11 +409,17 @@ impl StreamDownloader {
                     .map(|v| v != "none")
                     .unwrap_or(false);
 
+                debug!(url = %url, size = ?size, resume, "HEAD request succeeded");
                 Ok((size, resume))
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 // HEAD might not be supported, continue without info
                 warn!(error = %e, "HEAD request failed, continuing without content info");
+                Ok((None, false))
+            }
+            Err(_) => {
+                // Timeout - continue without content info
+                warn!(url = %url, "HEAD request timed out, continuing without content info");
                 Ok((None, false))
             }
         }

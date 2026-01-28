@@ -92,6 +92,18 @@ pub enum Error {
     /// Platform not supported.
     #[error("unsupported platform: {0}")]
     UnsupportedPlatform(String),
+
+    /// Audit error.
+    #[error("audit error: {0}")]
+    Audit(String),
+
+    /// Integrity verification error.
+    #[error("integrity error: {0}")]
+    Integrity(String),
+
+    /// Signature verification error.
+    #[error("signature error: {0}")]
+    Signature(String),
 }
 
 impl Error {

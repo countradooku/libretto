@@ -379,21 +379,6 @@ impl<S: PackageSource + 'static> DependencyProvider for ComposerProvider<S> {
             result.insert(dep.name, ranges);
         }
 
-        // Optionally include dev dependencies
-        if self.config.include_dev {
-            if let Some(dev_deps) = self.index.get_dev_dependencies(package, version) {
-                for dep in dev_deps {
-                    if Self::is_platform_package(dep.name.as_str()) {
-                        self.record_platform(dep.name.as_str());
-                        continue;
-                    }
-
-                    let ranges = constraint_to_ranges(&dep.constraint);
-                    result.insert(dep.name, ranges);
-                }
-            }
-        }
-
         trace!(
             package = %package,
             version = %version,

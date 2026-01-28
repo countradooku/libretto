@@ -1,9 +1,9 @@
 //! Bitbucket API client for fetching repository metadata.
 
-use crate::cache::{RepositoryCache, DEFAULT_METADATA_TTL};
+use crate::cache::{DEFAULT_METADATA_TTL, RepositoryCache};
 use crate::client::{AuthType, HttpClient, HttpClientConfig};
 use crate::error::{RepositoryError, Result};
-use crate::providers::{parse_vcs_url, VcsProvider};
+use crate::providers::{VcsProvider, parse_vcs_url};
 use serde::Deserialize;
 use std::future::Future;
 use std::pin::Pin;
@@ -95,7 +95,7 @@ impl BitbucketClient {
         })?;
 
         // Bitbucket uses Basic auth with username and app password
-        if let (Some(ref username), Some(ref token)) = (&config.username, &config.token) {
+        if let (Some(username), Some(token)) = (&config.username, &config.token) {
             if let Some(host) = config.api_url.host_str() {
                 http.set_auth(
                     host,
@@ -132,6 +132,32 @@ impl BitbucketClient {
             })
     }
 
+    /// Fetch all pages of a paginated Bitbucket API endpoint.
+    async fn fetch_all_pages<T>(&self, url: &Url) -> Result<Vec<T>>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        let mut all_items = Vec::new();
+        let mut next_url = Some(url.clone());
+
+        while let Some(current_url) = next_url {
+            let response = self.http.get(&current_url).await?;
+
+            let paginated: BitbucketPaginatedResponse<T> = sonic_rs::from_slice(&response.body)
+                .map_err(|e| RepositoryError::ParseError {
+                    source: current_url.to_string(),
+                    message: e.to_string(),
+                })?;
+
+            all_items.extend(paginated.values);
+
+            // Follow the next page if available
+            next_url = paginated.next.and_then(|next| Url::parse(&next).ok());
+        }
+
+        Ok(all_items)
+    }
+
     /// Get file contents from a repository.
     pub async fn get_file_contents(
         &self,
@@ -165,7 +191,7 @@ impl BitbucketClient {
         Ok(content)
     }
 
-    /// List repository tags.
+    /// List repository tags with pagination support.
     pub async fn list_tags(&self, workspace: &str, repo: &str) -> Result<Vec<BitbucketRef>> {
         let url = self.api_url(workspace, repo, "refs/tags")?;
         let cache_key = format!("bitbucket:{workspace}/{repo}/tags");
@@ -176,15 +202,7 @@ impl BitbucketClient {
             }
         }
 
-        let response = self.http.get(&url).await?;
-
-        let paginated: BitbucketPaginatedResponse<BitbucketRef> =
-            sonic_rs::from_slice(&response.body).map_err(|e| RepositoryError::ParseError {
-                source: url.to_string(),
-                message: e.to_string(),
-            })?;
-
-        let tags = paginated.values;
+        let tags = self.fetch_all_pages::<BitbucketRef>(&url).await?;
 
         if let Ok(data) = sonic_rs::to_vec(&tags) {
             let _ = self
@@ -195,7 +213,7 @@ impl BitbucketClient {
         Ok(tags)
     }
 
-    /// List repository branches.
+    /// List repository branches with pagination support.
     pub async fn list_branches(&self, workspace: &str, repo: &str) -> Result<Vec<BitbucketRef>> {
         let url = self.api_url(workspace, repo, "refs/branches")?;
         let cache_key = format!("bitbucket:{workspace}/{repo}/branches");
@@ -206,15 +224,7 @@ impl BitbucketClient {
             }
         }
 
-        let response = self.http.get(&url).await?;
-
-        let paginated: BitbucketPaginatedResponse<BitbucketRef> =
-            sonic_rs::from_slice(&response.body).map_err(|e| RepositoryError::ParseError {
-                source: url.to_string(),
-                message: e.to_string(),
-            })?;
-
-        let branches = paginated.values;
+        let branches = self.fetch_all_pages::<BitbucketRef>(&url).await?;
 
         if let Ok(data) = sonic_rs::to_vec(&branches) {
             let _ = self
@@ -354,10 +364,6 @@ struct BitbucketPaginatedResponse<T> {
     values: Vec<T>,
     #[serde(default)]
     next: Option<String>,
-    #[serde(default)]
-    page: Option<u32>,
-    #[serde(default)]
-    size: Option<u32>,
 }
 
 /// Bitbucket ref (tag or branch).

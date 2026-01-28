@@ -1,6 +1,6 @@
 [package]
 name = "libretto-vcs"
-description = "Version control operations for Libretto"
+description = "High-performance version control operations for Libretto"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,7 +12,60 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+# Internal crates
 libretto-core = { workspace = true }
-tracing = { workspace = true }
+libretto-platform = { workspace = true }
+
+# Git operations (pure Rust, high-performance)
+gix = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Parallelism
+rayon = { workspace = true }
+
+# Concurrent data structures
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+
+# URL parsing
 url = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Filesystem
+tempfile = { workspace = true }
+walkdir = { workspace = true }
+
+# Retry/backoff
+backon = { workspace = true }
+
+# Bytes
+bytes = { workspace = true }
+
+# Once cell
+once_cell = { workspace = true }
+
+# Regex for URL parsing
+regex = { workspace = true }
+
+# Fast hashing
+blake3 = { workspace = true }
+
+# CPU count
+num_cpus = "1.16"
+
+# JSON parsing
+sonic-rs = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tempfile = { workspace = true }

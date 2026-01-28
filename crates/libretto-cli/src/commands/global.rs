@@ -149,8 +149,18 @@ async fn run_subcommand(command: &str, args: &[String]) -> Result<()> {
                 prefer_source: args.contains(&"--prefer-source".to_string()),
                 dry_run: args.contains(&"--dry-run".to_string()),
                 ignore_platform_reqs: args.contains(&"--ignore-platform-reqs".to_string()),
+                ignore_platform_req: vec![],
                 optimize_autoloader: args.contains(&"-o".to_string())
                     || args.contains(&"--optimize-autoloader".to_string()),
+                classmap_authoritative: args.contains(&"-a".to_string())
+                    || args.contains(&"--classmap-authoritative".to_string()),
+                apcu_autoloader: args.contains(&"--apcu-autoloader".to_string()),
+                no_scripts: args.contains(&"--no-scripts".to_string()),
+                prefer_lowest: args.contains(&"--prefer-lowest".to_string()),
+                prefer_stable: args.contains(&"--prefer-stable".to_string()),
+                minimum_stability: None,
+                no_progress: args.contains(&"--no-progress".to_string()),
+                concurrency: 64,
             };
 
             commands::install::run(install_args).await

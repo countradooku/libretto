@@ -65,6 +65,29 @@ impl VersionConstraint {
             return "*".to_string();
         }
 
+        // Handle .* wildcard patterns (e.g., "3.*", "7.*", "1.2.*")
+        if s.ends_with(".*") || s.ends_with(".x") {
+            let prefix = &s[..s.len() - 2];
+            let parts: Vec<&str> = prefix.split('.').collect();
+            return match parts.len() {
+                // "3.*" -> ">=3.0.0, <4.0.0"
+                1 => format!(
+                    ">={}.0.0, <{}.0.0",
+                    parts[0],
+                    parts[0].parse::<u64>().unwrap_or(0) + 1
+                ),
+                // "3.1.*" -> ">=3.1.0, <3.2.0"
+                2 => format!(
+                    ">={}.{}.0, <{}.{}.0",
+                    parts[0],
+                    parts[1],
+                    parts[0],
+                    parts[1].parse::<u64>().unwrap_or(0) + 1
+                ),
+                _ => s.to_string(),
+            };
+        }
+
         // Handle ^ (caret)
         if let Some(rest) = s.strip_prefix('^') {
             return format!("^{}", Self::normalize_version(rest));
@@ -85,10 +108,17 @@ impl VersionConstraint {
             return s.to_string();
         }
 
-        // Handle || (OR)
+        // Handle || or | (OR) - Composer supports both
         if s.contains("||") {
             return s
                 .split("||")
+                .map(|p| Self::new(p.trim()).normalize_constraint())
+                .collect::<Vec<_>>()
+                .join(" || ");
+        }
+        if s.contains('|') && !s.contains("||") {
+            return s
+                .split('|')
                 .map(|p| Self::new(p.trim()).normalize_constraint())
                 .collect::<Vec<_>>()
                 .join(" || ");
@@ -151,6 +181,33 @@ mod tests {
         let c = VersionConstraint::any();
         assert!(c.matches(&Version::new(1, 0, 0)));
         assert!(c.matches(&Version::new(99, 99, 99)));
+    }
+
+    #[test]
+    fn major_wildcard() {
+        // Test 3.* pattern
+        let c = VersionConstraint::new("3.*");
+        assert!(c.matches(&Version::new(3, 0, 0)));
+        assert!(c.matches(&Version::new(3, 11, 0)));
+        assert!(c.matches(&Version::new(3, 99, 99)));
+        assert!(!c.matches(&Version::new(2, 0, 0)));
+        assert!(!c.matches(&Version::new(4, 0, 0)));
+
+        // Test 7.* pattern
+        let c7 = VersionConstraint::new("7.*");
+        assert!(c7.matches(&Version::new(7, 0, 0)));
+        assert!(c7.matches(&Version::new(7, 17, 0)));
+        assert!(!c7.matches(&Version::new(8, 0, 0)));
+    }
+
+    #[test]
+    fn minor_wildcard() {
+        // Test 3.1.* pattern
+        let c = VersionConstraint::new("3.1.*");
+        assert!(c.matches(&Version::new(3, 1, 0)));
+        assert!(c.matches(&Version::new(3, 1, 99)));
+        assert!(!c.matches(&Version::new(3, 0, 0)));
+        assert!(!c.matches(&Version::new(3, 2, 0)));
     }
 
     #[test]

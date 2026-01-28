@@ -76,10 +76,13 @@
 #![allow(clippy::module_name_repetitions)]
 
 pub mod composer;
+pub mod fast;
 pub mod index;
 pub mod package;
 pub mod provider;
+pub mod remote;
 pub mod resolver;
+pub mod turbo;
 pub mod version;
 
 // Re-export main types
@@ -91,9 +94,18 @@ pub use provider::{
 };
 pub use resolver::{Resolution, ResolveError, ResolveOptions, ResolvedPackage, Resolver};
 pub use version::{
-    clear_caches, ComposerConstraint, ComposerVersion, ConstraintParseError, Stability,
-    VersionParseError,
+    ComposerConstraint, ComposerVersion, ConstraintParseError, Stability, VersionParseError,
+    clear_caches,
 };
+
+// Re-export remote fetching types
+pub use remote::{AsyncPackageFetcher, RemotePackage, RemotePackageSource, RemoteStats};
+
+// Re-export turbo resolver types
+pub use turbo::{TurboConfig, TurboResolver, TurboStats};
+
+// Re-export fast resolver types
+pub use fast::{FastConfig, FastResolver, FastStats};
 
 /// Prelude module for convenient imports.
 pub mod prelude {

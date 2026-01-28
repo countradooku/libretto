@@ -364,11 +364,13 @@ impl SimdOps for SimdRuntime {
 unsafe fn compare_bytes_32_avx2(a: &[u8; 32], b: &[u8; 32]) -> bool {
     use std::arch::x86_64::*;
 
-    let va = _mm256_loadu_si256(a.as_ptr() as *const __m256i);
-    let vb = _mm256_loadu_si256(b.as_ptr() as *const __m256i);
-    let cmp = _mm256_cmpeq_epi8(va, vb);
-    let mask = _mm256_movemask_epi8(cmp);
-    mask == -1i32
+    unsafe {
+        let va = _mm256_loadu_si256(a.as_ptr() as *const __m256i);
+        let vb = _mm256_loadu_si256(b.as_ptr() as *const __m256i);
+        let cmp = _mm256_cmpeq_epi8(va, vb);
+        let mask = _mm256_movemask_epi8(cmp);
+        mask == -1i32
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -376,18 +378,20 @@ unsafe fn compare_bytes_32_avx2(a: &[u8; 32], b: &[u8; 32]) -> bool {
 unsafe fn compare_bytes_32_sse42(a: &[u8; 32], b: &[u8; 32]) -> bool {
     use std::arch::x86_64::*;
 
-    let va0 = _mm_loadu_si128(a.as_ptr() as *const __m128i);
-    let vb0 = _mm_loadu_si128(b.as_ptr() as *const __m128i);
-    let va1 = _mm_loadu_si128(a.as_ptr().add(16) as *const __m128i);
-    let vb1 = _mm_loadu_si128(b.as_ptr().add(16) as *const __m128i);
+    unsafe {
+        let va0 = _mm_loadu_si128(a.as_ptr() as *const __m128i);
+        let vb0 = _mm_loadu_si128(b.as_ptr() as *const __m128i);
+        let va1 = _mm_loadu_si128(a.as_ptr().add(16) as *const __m128i);
+        let vb1 = _mm_loadu_si128(b.as_ptr().add(16) as *const __m128i);
 
-    let cmp0 = _mm_cmpeq_epi8(va0, vb0);
-    let cmp1 = _mm_cmpeq_epi8(va1, vb1);
+        let cmp0 = _mm_cmpeq_epi8(va0, vb0);
+        let cmp1 = _mm_cmpeq_epi8(va1, vb1);
 
-    let mask0 = _mm_movemask_epi8(cmp0);
-    let mask1 = _mm_movemask_epi8(cmp1);
+        let mask0 = _mm_movemask_epi8(cmp0);
+        let mask1 = _mm_movemask_epi8(cmp1);
 
-    mask0 == 0xFFFF && mask1 == 0xFFFF
+        mask0 == 0xFFFF && mask1 == 0xFFFF
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -395,18 +399,20 @@ unsafe fn compare_bytes_32_sse42(a: &[u8; 32], b: &[u8; 32]) -> bool {
 unsafe fn compare_bytes_64_avx2(a: &[u8; 64], b: &[u8; 64]) -> bool {
     use std::arch::x86_64::*;
 
-    let va0 = _mm256_loadu_si256(a.as_ptr() as *const __m256i);
-    let vb0 = _mm256_loadu_si256(b.as_ptr() as *const __m256i);
-    let va1 = _mm256_loadu_si256(a.as_ptr().add(32) as *const __m256i);
-    let vb1 = _mm256_loadu_si256(b.as_ptr().add(32) as *const __m256i);
+    unsafe {
+        let va0 = _mm256_loadu_si256(a.as_ptr() as *const __m256i);
+        let vb0 = _mm256_loadu_si256(b.as_ptr() as *const __m256i);
+        let va1 = _mm256_loadu_si256(a.as_ptr().add(32) as *const __m256i);
+        let vb1 = _mm256_loadu_si256(b.as_ptr().add(32) as *const __m256i);
 
-    let cmp0 = _mm256_cmpeq_epi8(va0, vb0);
-    let cmp1 = _mm256_cmpeq_epi8(va1, vb1);
+        let cmp0 = _mm256_cmpeq_epi8(va0, vb0);
+        let cmp1 = _mm256_cmpeq_epi8(va1, vb1);
 
-    let mask0 = _mm256_movemask_epi8(cmp0);
-    let mask1 = _mm256_movemask_epi8(cmp1);
+        let mask0 = _mm256_movemask_epi8(cmp0);
+        let mask1 = _mm256_movemask_epi8(cmp1);
 
-    mask0 == -1i32 && mask1 == -1i32
+        mask0 == -1i32 && mask1 == -1i32
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -414,10 +420,12 @@ unsafe fn compare_bytes_64_avx2(a: &[u8; 64], b: &[u8; 64]) -> bool {
 unsafe fn compare_bytes_64_avx512(a: &[u8; 64], b: &[u8; 64]) -> bool {
     use std::arch::x86_64::*;
 
-    let va = _mm512_loadu_si512(a.as_ptr().cast::<__m512i>());
-    let vb = _mm512_loadu_si512(b.as_ptr().cast::<__m512i>());
-    let mask = _mm512_cmpeq_epi8_mask(va, vb);
-    mask == u64::MAX
+    unsafe {
+        let va = _mm512_loadu_si512(a.as_ptr().cast::<__m512i>());
+        let vb = _mm512_loadu_si512(b.as_ptr().cast::<__m512i>());
+        let mask = _mm512_cmpeq_epi8_mask(va, vb);
+        mask == u64::MAX
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -429,28 +437,30 @@ unsafe fn find_byte_avx2(haystack: &[u8], needle: u8) -> Option<usize> {
         return None;
     }
 
-    let needle_vec = _mm256_set1_epi8(needle as i8);
-    let chunks = haystack.len() / 32;
+    unsafe {
+        let needle_vec = _mm256_set1_epi8(needle as i8);
+        let chunks = haystack.len() / 32;
 
-    for i in 0..chunks {
-        let offset = i * 32;
-        let chunk = _mm256_loadu_si256(haystack.as_ptr().add(offset) as *const __m256i);
-        let cmp = _mm256_cmpeq_epi8(chunk, needle_vec);
-        let mask = _mm256_movemask_epi8(cmp) as u32;
-        if mask != 0 {
-            return Some(offset + mask.trailing_zeros() as usize);
+        for i in 0..chunks {
+            let offset = i * 32;
+            let chunk = _mm256_loadu_si256(haystack.as_ptr().add(offset) as *const __m256i);
+            let cmp = _mm256_cmpeq_epi8(chunk, needle_vec);
+            let mask = _mm256_movemask_epi8(cmp) as u32;
+            if mask != 0 {
+                return Some(offset + mask.trailing_zeros() as usize);
+            }
         }
-    }
 
-    // Handle remaining bytes
-    let remaining_start = chunks * 32;
-    for (i, &byte) in haystack[remaining_start..].iter().enumerate() {
-        if byte == needle {
-            return Some(remaining_start + i);
+        // Handle remaining bytes
+        let remaining_start = chunks * 32;
+        for (i, &byte) in haystack[remaining_start..].iter().enumerate() {
+            if byte == needle {
+                return Some(remaining_start + i);
+            }
         }
-    }
 
-    None
+        None
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -462,27 +472,29 @@ unsafe fn find_byte_sse42(haystack: &[u8], needle: u8) -> Option<usize> {
         return None;
     }
 
-    let needle_vec = _mm_set1_epi8(needle as i8);
-    let chunks = haystack.len() / 16;
+    unsafe {
+        let needle_vec = _mm_set1_epi8(needle as i8);
+        let chunks = haystack.len() / 16;
 
-    for i in 0..chunks {
-        let offset = i * 16;
-        let chunk = _mm_loadu_si128(haystack.as_ptr().add(offset) as *const __m128i);
-        let cmp = _mm_cmpeq_epi8(chunk, needle_vec);
-        let mask = _mm_movemask_epi8(cmp) as u32;
-        if mask != 0 {
-            return Some(offset + mask.trailing_zeros() as usize);
+        for i in 0..chunks {
+            let offset = i * 16;
+            let chunk = _mm_loadu_si128(haystack.as_ptr().add(offset) as *const __m128i);
+            let cmp = _mm_cmpeq_epi8(chunk, needle_vec);
+            let mask = _mm_movemask_epi8(cmp) as u32;
+            if mask != 0 {
+                return Some(offset + mask.trailing_zeros() as usize);
+            }
         }
-    }
 
-    let remaining_start = chunks * 16;
-    for (i, &byte) in haystack[remaining_start..].iter().enumerate() {
-        if byte == needle {
-            return Some(remaining_start + i);
+        let remaining_start = chunks * 16;
+        for (i, &byte) in haystack[remaining_start..].iter().enumerate() {
+            if byte == needle {
+                return Some(remaining_start + i);
+            }
         }
-    }
 
-    None
+        None
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -490,21 +502,23 @@ unsafe fn find_byte_sse42(haystack: &[u8], needle: u8) -> Option<usize> {
 unsafe fn starts_with_avx2(haystack: &[u8], prefix: &[u8]) -> bool {
     use std::arch::x86_64::*;
 
-    let chunks = prefix.len() / 32;
+    unsafe {
+        let chunks = prefix.len() / 32;
 
-    for i in 0..chunks {
-        let offset = i * 32;
-        let h = _mm256_loadu_si256(haystack.as_ptr().add(offset) as *const __m256i);
-        let p = _mm256_loadu_si256(prefix.as_ptr().add(offset) as *const __m256i);
-        let cmp = _mm256_cmpeq_epi8(h, p);
-        let mask = _mm256_movemask_epi8(cmp);
-        if mask != -1i32 {
-            return false;
+        for i in 0..chunks {
+            let offset = i * 32;
+            let h = _mm256_loadu_si256(haystack.as_ptr().add(offset) as *const __m256i);
+            let p = _mm256_loadu_si256(prefix.as_ptr().add(offset) as *const __m256i);
+            let cmp = _mm256_cmpeq_epi8(h, p);
+            let mask = _mm256_movemask_epi8(cmp);
+            if mask != -1i32 {
+                return false;
+            }
         }
-    }
 
-    let remaining_start = chunks * 32;
-    haystack[remaining_start..].starts_with(&prefix[remaining_start..])
+        let remaining_start = chunks * 32;
+        haystack[remaining_start..].starts_with(&prefix[remaining_start..])
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -512,18 +526,20 @@ unsafe fn starts_with_avx2(haystack: &[u8], prefix: &[u8]) -> bool {
 unsafe fn xor_slices_avx2(dst: &mut [u8], src: &[u8]) {
     use std::arch::x86_64::*;
 
-    let chunks = dst.len() / 32;
+    unsafe {
+        let chunks = dst.len() / 32;
 
-    for i in 0..chunks {
-        let offset = i * 32;
-        let vd = _mm256_loadu_si256(dst.as_ptr().add(offset) as *const __m256i);
-        let vs = _mm256_loadu_si256(src.as_ptr().add(offset) as *const __m256i);
-        let result = _mm256_xor_si256(vd, vs);
-        _mm256_storeu_si256(dst.as_mut_ptr().add(offset) as *mut __m256i, result);
+        for i in 0..chunks {
+            let offset = i * 32;
+            let vd = _mm256_loadu_si256(dst.as_ptr().add(offset) as *const __m256i);
+            let vs = _mm256_loadu_si256(src.as_ptr().add(offset) as *const __m256i);
+            let result = _mm256_xor_si256(vd, vs);
+            _mm256_storeu_si256(dst.as_mut_ptr().add(offset) as *mut __m256i, result);
+        }
+
+        let remaining_start = chunks * 32;
+        xor_slices_scalar(&mut dst[remaining_start..], &src[remaining_start..]);
     }
-
-    let remaining_start = chunks * 32;
-    xor_slices_scalar(&mut dst[remaining_start..], &src[remaining_start..]);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -531,18 +547,20 @@ unsafe fn xor_slices_avx2(dst: &mut [u8], src: &[u8]) {
 unsafe fn or_slices_avx2(dst: &mut [u8], src: &[u8]) {
     use std::arch::x86_64::*;
 
-    let chunks = dst.len() / 32;
+    unsafe {
+        let chunks = dst.len() / 32;
 
-    for i in 0..chunks {
-        let offset = i * 32;
-        let vd = _mm256_loadu_si256(dst.as_ptr().add(offset) as *const __m256i);
-        let vs = _mm256_loadu_si256(src.as_ptr().add(offset) as *const __m256i);
-        let result = _mm256_or_si256(vd, vs);
-        _mm256_storeu_si256(dst.as_mut_ptr().add(offset) as *mut __m256i, result);
+        for i in 0..chunks {
+            let offset = i * 32;
+            let vd = _mm256_loadu_si256(dst.as_ptr().add(offset) as *const __m256i);
+            let vs = _mm256_loadu_si256(src.as_ptr().add(offset) as *const __m256i);
+            let result = _mm256_or_si256(vd, vs);
+            _mm256_storeu_si256(dst.as_mut_ptr().add(offset) as *mut __m256i, result);
+        }
+
+        let remaining_start = chunks * 32;
+        or_slices_scalar(&mut dst[remaining_start..], &src[remaining_start..]);
     }
-
-    let remaining_start = chunks * 32;
-    or_slices_scalar(&mut dst[remaining_start..], &src[remaining_start..]);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -550,18 +568,20 @@ unsafe fn or_slices_avx2(dst: &mut [u8], src: &[u8]) {
 unsafe fn and_slices_avx2(dst: &mut [u8], src: &[u8]) {
     use std::arch::x86_64::*;
 
-    let chunks = dst.len() / 32;
+    unsafe {
+        let chunks = dst.len() / 32;
 
-    for i in 0..chunks {
-        let offset = i * 32;
-        let vd = _mm256_loadu_si256(dst.as_ptr().add(offset) as *const __m256i);
-        let vs = _mm256_loadu_si256(src.as_ptr().add(offset) as *const __m256i);
-        let result = _mm256_and_si256(vd, vs);
-        _mm256_storeu_si256(dst.as_mut_ptr().add(offset) as *mut __m256i, result);
+        for i in 0..chunks {
+            let offset = i * 32;
+            let vd = _mm256_loadu_si256(dst.as_ptr().add(offset) as *const __m256i);
+            let vs = _mm256_loadu_si256(src.as_ptr().add(offset) as *const __m256i);
+            let result = _mm256_and_si256(vd, vs);
+            _mm256_storeu_si256(dst.as_mut_ptr().add(offset) as *mut __m256i, result);
+        }
+
+        let remaining_start = chunks * 32;
+        and_slices_scalar(&mut dst[remaining_start..], &src[remaining_start..]);
     }
-
-    let remaining_start = chunks * 32;
-    and_slices_scalar(&mut dst[remaining_start..], &src[remaining_start..]);
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -569,45 +589,47 @@ unsafe fn and_slices_avx2(dst: &mut [u8], src: &[u8]) {
 unsafe fn popcount_slice_avx2(data: &[u64]) -> usize {
     use std::arch::x86_64::*;
 
-    // Use lookup table approach for AVX2 popcount
-    let low_mask = _mm256_set1_epi8(0x0f);
-    let lookup = _mm256_setr_epi8(
-        0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3,
-        3, 4,
-    );
+    unsafe {
+        // Use lookup table approach for AVX2 popcount
+        let low_mask = _mm256_set1_epi8(0x0f);
+        let lookup = _mm256_setr_epi8(
+            0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4, 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2,
+            3, 3, 4,
+        );
 
-    let mut total = _mm256_setzero_si256();
-    let chunks = data.len() / 4;
+        let mut total = _mm256_setzero_si256();
+        let chunks = data.len() / 4;
 
-    for i in 0..chunks {
-        let offset = i * 4;
-        let v = _mm256_loadu_si256(data.as_ptr().add(offset) as *const __m256i);
+        for i in 0..chunks {
+            let offset = i * 4;
+            let v = _mm256_loadu_si256(data.as_ptr().add(offset) as *const __m256i);
 
-        let lo = _mm256_and_si256(v, low_mask);
-        let hi = _mm256_and_si256(_mm256_srli_epi16(v, 4), low_mask);
+            let lo = _mm256_and_si256(v, low_mask);
+            let hi = _mm256_and_si256(_mm256_srli_epi16(v, 4), low_mask);
 
-        let popcnt_lo = _mm256_shuffle_epi8(lookup, lo);
-        let popcnt_hi = _mm256_shuffle_epi8(lookup, hi);
+            let popcnt_lo = _mm256_shuffle_epi8(lookup, lo);
+            let popcnt_hi = _mm256_shuffle_epi8(lookup, hi);
 
-        let local = _mm256_add_epi8(popcnt_lo, popcnt_hi);
-        total = _mm256_add_epi64(total, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+            let local = _mm256_add_epi8(popcnt_lo, popcnt_hi);
+            total = _mm256_add_epi64(total, _mm256_sad_epu8(local, _mm256_setzero_si256()));
+        }
+
+        // Sum horizontal
+        let sum128 = _mm_add_epi64(
+            _mm256_extracti128_si256(total, 0),
+            _mm256_extracti128_si256(total, 1),
+        );
+        let sum = _mm_extract_epi64(sum128, 0) + _mm_extract_epi64(sum128, 1);
+
+        // Handle remaining
+        let remaining_start = chunks * 4;
+        let remaining_sum: usize = data[remaining_start..]
+            .iter()
+            .map(|&x| x.count_ones() as usize)
+            .sum();
+
+        sum as usize + remaining_sum
     }
-
-    // Sum horizontal
-    let sum128 = _mm_add_epi64(
-        _mm256_extracti128_si256(total, 0),
-        _mm256_extracti128_si256(total, 1),
-    );
-    let sum = _mm_extract_epi64(sum128, 0) + _mm_extract_epi64(sum128, 1);
-
-    // Handle remaining
-    let remaining_start = chunks * 4;
-    let remaining_sum: usize = data[remaining_start..]
-        .iter()
-        .map(|&x| x.count_ones() as usize)
-        .sum();
-
-    sum as usize + remaining_sum
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -615,27 +637,29 @@ unsafe fn popcount_slice_avx2(data: &[u64]) -> usize {
 unsafe fn sum_bytes_avx2(data: &[u8]) -> u64 {
     use std::arch::x86_64::*;
 
-    let mut total = _mm256_setzero_si256();
-    let chunks = data.len() / 32;
+    unsafe {
+        let mut total = _mm256_setzero_si256();
+        let chunks = data.len() / 32;
 
-    for i in 0..chunks {
-        let offset = i * 32;
-        let v = _mm256_loadu_si256(data.as_ptr().add(offset) as *const __m256i);
-        total = _mm256_add_epi64(total, _mm256_sad_epu8(v, _mm256_setzero_si256()));
+        for i in 0..chunks {
+            let offset = i * 32;
+            let v = _mm256_loadu_si256(data.as_ptr().add(offset) as *const __m256i);
+            total = _mm256_add_epi64(total, _mm256_sad_epu8(v, _mm256_setzero_si256()));
+        }
+
+        // Sum horizontal
+        let sum128 = _mm_add_epi64(
+            _mm256_extracti128_si256(total, 0),
+            _mm256_extracti128_si256(total, 1),
+        );
+        let sum = (_mm_extract_epi64(sum128, 0) + _mm_extract_epi64(sum128, 1)) as u64;
+
+        // Handle remaining
+        let remaining_start = chunks * 32;
+        let remaining_sum: u64 = data[remaining_start..].iter().map(|&b| b as u64).sum();
+
+        sum + remaining_sum
     }
-
-    // Sum horizontal
-    let sum128 = _mm_add_epi64(
-        _mm256_extracti128_si256(total, 0),
-        _mm256_extracti128_si256(total, 1),
-    );
-    let sum = (_mm_extract_epi64(sum128, 0) + _mm_extract_epi64(sum128, 1)) as u64;
-
-    // Handle remaining
-    let remaining_start = chunks * 32;
-    let remaining_sum: u64 = data[remaining_start..].iter().map(|&b| b as u64).sum();
-
-    sum + remaining_sum
 }
 
 // ============================================================================

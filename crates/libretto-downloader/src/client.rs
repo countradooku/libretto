@@ -5,8 +5,8 @@
 use crate::config::{AuthConfig, DownloadConfig};
 use crate::error::{DownloadError, Result};
 use reqwest::{
-    header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, RANGE, USER_AGENT},
     Client, Response, StatusCode,
+    header::{ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, HeaderMap, HeaderValue, RANGE, USER_AGENT},
 };
 use std::sync::Arc;
 use std::time::Duration;
@@ -37,31 +37,32 @@ impl HttpClient {
     /// # Errors
     /// Returns error if client cannot be built.
     pub fn new(config: DownloadConfig, auth: Option<AuthConfig>) -> Result<Self> {
+        // Configure HTTP/2 multiplexing for optimal performance
         let mut builder = Client::builder()
             .connect_timeout(config.connect_timeout)
-            .read_timeout(config.read_timeout)
             .timeout(config.total_timeout)
             .pool_max_idle_per_host(config.max_connections_per_host)
-            .tcp_keepalive(if config.keep_alive {
-                Some(config.keep_alive_timeout)
-            } else {
-                None
-            })
+            .pool_idle_timeout(config.keep_alive_timeout)
+            .tcp_keepalive(config.keep_alive_timeout)
             .tcp_nodelay(true)
             .gzip(true)
             .brotli(true)
             .deflate(true)
-            .zstd(true)
-            .redirect(reqwest::redirect::Policy::limited(10))
-            .use_rustls_tls();
+            .redirect(reqwest::redirect::Policy::limited(10));
 
-        // Enable HTTP/2 multiplexing
+        // Enable HTTP/2 with optimized settings if configured
+        // Uses automatic protocol negotiation (ALPN) rather than prior knowledge
         if config.http2_multiplexing {
             builder = builder
-                .http2_prior_knowledge()
                 .http2_adaptive_window(config.http2_adaptive_window)
-                .http2_initial_stream_window_size(config.http2_initial_stream_window)
-                .http2_initial_connection_window_size(config.http2_initial_connection_window);
+                .http2_initial_stream_window_size(Some(config.http2_initial_stream_window))
+                .http2_initial_connection_window_size(Some(config.http2_initial_connection_window))
+                .http2_keep_alive_interval(Some(Duration::from_secs(15)))
+                .http2_keep_alive_timeout(Duration::from_secs(20))
+                .http2_keep_alive_while_idle(true);
+        } else {
+            // Disable HTTP/2 if not configured
+            builder = builder.http1_only();
         }
 
         // Configure proxy from config or environment
@@ -69,37 +70,6 @@ impl HttpClient {
             let proxy =
                 reqwest::Proxy::all(proxy_url).map_err(|e| DownloadError::Config(e.to_string()))?;
             builder = builder.proxy(proxy);
-        } else {
-            // Use system proxy settings from environment
-            builder = builder.proxy(reqwest::Proxy::custom(|url| {
-                // Check HTTPS_PROXY, HTTP_PROXY, NO_PROXY
-                let scheme = url.scheme();
-                let host = url.host_str().unwrap_or("");
-
-                // Check NO_PROXY first
-                if let Ok(no_proxy) =
-                    std::env::var("NO_PROXY").or_else(|_| std::env::var("no_proxy"))
-                {
-                    for pattern in no_proxy.split(',') {
-                        let pattern = pattern.trim();
-                        if pattern == "*" || host.ends_with(pattern) || host == pattern {
-                            return None;
-                        }
-                    }
-                }
-
-                // Get proxy URL based on scheme
-                let proxy_var = if scheme == "https" {
-                    std::env::var("HTTPS_PROXY")
-                        .or_else(|_| std::env::var("https_proxy"))
-                        .or_else(|_| std::env::var("HTTP_PROXY"))
-                        .or_else(|_| std::env::var("http_proxy"))
-                } else {
-                    std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy"))
-                };
-
-                proxy_var.ok().and_then(|p| p.parse::<reqwest::Url>().ok())
-            }));
         }
 
         let client = builder
@@ -141,14 +111,32 @@ impl HttpClient {
         let mut headers = self.default_headers();
         self.add_auth_headers(&mut headers, url);
 
-        debug!(url = %url, "GET request");
+        debug!(url = %url, "GET request starting");
 
-        let response = self
-            .client
-            .get(url.as_str())
-            .headers(headers)
-            .send()
-            .await?;
+        let request = self.client.get(url.as_str()).headers(headers);
+
+        debug!(url = %url, "sending GET request");
+
+        // Add timeout to avoid hanging forever
+        let send_future = request.send();
+        let timeout_duration = self.config.total_timeout;
+
+        let response = match tokio::time::timeout(timeout_duration, send_future).await {
+            Ok(Ok(resp)) => {
+                debug!(url = %url, status = %resp.status(), "GET request succeeded");
+                resp
+            }
+            Ok(Err(e)) => {
+                debug!(url = %url, error = %e, "GET request failed");
+                return Err(e.into());
+            }
+            Err(_) => {
+                debug!(url = %url, "GET request timed out");
+                return Err(DownloadError::network(format!(
+                    "request timed out for {url}"
+                )));
+            }
+        };
 
         self.check_response(response).await
     }

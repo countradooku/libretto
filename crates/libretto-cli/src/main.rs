@@ -7,9 +7,13 @@
 #![deny(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
+mod cas_cache;
 mod commands;
 mod context;
+mod fetcher;
 mod output;
+mod platform;
+mod scripts;
 
 use clap::Parser;
 use commands::{Cli, Commands};

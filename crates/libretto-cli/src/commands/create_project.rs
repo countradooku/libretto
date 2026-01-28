@@ -156,8 +156,21 @@ pub async fn run(args: CreateProjectArgs) -> Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let archive_path = temp_dir.path().join("package.zip");
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .user_agent("libretto/0.1.0")
+        .redirect(reqwest::redirect::Policy::limited(10))
+        .build()?;
     let response = client.get(&dist_url).send().await?;
+
+    // Check for successful response
+    if !response.status().is_success() {
+        anyhow::bail!(
+            "Failed to download package: HTTP {} from {}",
+            response.status(),
+            dist_url
+        );
+    }
+
     let bytes = response.bytes().await?;
     std::fs::write(&archive_path, &bytes)?;
 
@@ -234,7 +247,16 @@ pub async fn run(args: CreateProjectArgs) -> Result<()> {
                 prefer_source: args.prefer_source,
                 dry_run: false,
                 ignore_platform_reqs: args.ignore_platform_reqs,
+                ignore_platform_req: vec![],
                 optimize_autoloader: false,
+                classmap_authoritative: false,
+                apcu_autoloader: false,
+                no_scripts: false,
+                prefer_lowest: false,
+                prefer_stable: true,
+                minimum_stability: Some(args.stability.clone()),
+                no_progress: false,
+                concurrency: 64,
             };
 
             crate::commands::install::run(install_args).await?;

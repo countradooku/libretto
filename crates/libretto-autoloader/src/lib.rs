@@ -15,7 +15,7 @@ mod parser;
 mod scanner;
 
 pub use parser::{DefinitionKind, PhpDefinition, PhpParser};
-pub use scanner::{build_classmap, build_namespace_map, ExcludePattern, FileScanResult, Scanner};
+pub use scanner::{ExcludePattern, FileScanResult, Scanner, build_classmap, build_namespace_map};
 
 use ahash::AHashMap;
 use libretto_core::{Error, Result};
@@ -363,9 +363,9 @@ impl AutoloaderGenerator {
     /// Create generator with optimization level.
     #[must_use]
     pub fn with_optimization(vendor_dir: PathBuf, level: OptimizationLevel) -> Self {
-        let mut gen = Self::new(vendor_dir);
-        gen.optimization_level = level;
-        gen
+        let mut generator = Self::new(vendor_dir);
+        generator.optimization_level = level;
+        generator
     }
 
     /// Enable incremental caching.
@@ -887,10 +887,22 @@ return ComposerAutoloaderInit{hash}::getLoader();
         let bytes = hash.as_bytes();
         format!(
             "{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}",
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5], bytes[6], bytes[7],
-            bytes[8], bytes[9], bytes[10], bytes[11],
-            bytes[12], bytes[13], bytes[14], bytes[15]
+            bytes[0],
+            bytes[1],
+            bytes[2],
+            bytes[3],
+            bytes[4],
+            bytes[5],
+            bytes[6],
+            bytes[7],
+            bytes[8],
+            bytes[9],
+            bytes[10],
+            bytes[11],
+            bytes[12],
+            bytes[13],
+            bytes[14],
+            bytes[15]
         )
     }
 
@@ -935,8 +947,8 @@ mod tests {
 
     #[test]
     fn generator_creation() {
-        let gen = AutoloaderGenerator::new(PathBuf::from("/tmp/vendor"));
-        assert!(gen.classmap.is_empty());
+        let generator = AutoloaderGenerator::new(PathBuf::from("/tmp/vendor"));
+        assert!(generator.classmap.is_empty());
     }
 
     #[test]
@@ -961,18 +973,18 @@ mod tests {
 
     #[test]
     fn generator_with_optimization() {
-        let gen = AutoloaderGenerator::with_optimization(
+        let generator = AutoloaderGenerator::with_optimization(
             PathBuf::from("/tmp/vendor"),
             OptimizationLevel::Optimized,
         );
-        assert_eq!(gen.optimization_level, OptimizationLevel::Optimized);
+        assert_eq!(generator.optimization_level, OptimizationLevel::Optimized);
     }
 
     #[test]
     fn relative_path_generation() {
-        let gen = AutoloaderGenerator::new(PathBuf::from("/home/user/project/vendor"));
-        let result =
-            gen.make_relative_path(Path::new("/home/user/project/vendor/autoload/src/Foo.php"));
+        let generator = AutoloaderGenerator::new(PathBuf::from("/home/user/project/vendor"));
+        let result = generator
+            .make_relative_path(Path::new("/home/user/project/vendor/autoload/src/Foo.php"));
         assert_eq!(result, "/autoload/src/Foo.php");
     }
 }

@@ -261,7 +261,16 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
             prefer_source: false,
             dry_run: false,
             ignore_platform_reqs: false,
+            ignore_platform_req: vec![],
             optimize_autoloader: false,
+            classmap_authoritative: false,
+            apcu_autoloader: false,
+            no_scripts: false,
+            prefer_lowest: false,
+            prefer_stable: true,
+            minimum_stability: None,
+            no_progress: false,
+            concurrency: 64,
         };
 
         crate::commands::install::run(install_args).await?;

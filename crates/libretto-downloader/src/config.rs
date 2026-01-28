@@ -60,6 +60,9 @@ pub struct DownloadConfig {
     pub buffer_size: usize,
     /// Chunk size for large file downloads.
     pub chunk_size: usize,
+    /// Maximum time allowed for a single package download (includes retries, extraction).
+    /// This is a wall-clock timeout to prevent indefinite hangs.
+    pub per_package_timeout: Duration,
 }
 
 impl Default for DownloadConfig {
@@ -76,7 +79,7 @@ impl Default for DownloadConfig {
             retry_base_delay: Duration::from_millis(500),
             retry_max_delay: Duration::from_secs(30),
             max_concurrent,
-            max_connections_per_host: 6,
+            max_connections_per_host: 50, // Increased for better concurrency
             http2_multiplexing: true,
             http2_adaptive_window: true,
             http2_initial_stream_window: 2 * 1024 * 1024, // 2MB
@@ -93,8 +96,9 @@ impl Default for DownloadConfig {
             auth_config_path: None,
             user_agent: format!("libretto/{}", env!("CARGO_PKG_VERSION")),
             accept_encoding: "gzip, deflate, br, zstd".to_string(),
-            buffer_size: 128 * 1024,     // 128KB
-            chunk_size: 8 * 1024 * 1024, // 8MB chunks for parallel download
+            buffer_size: 128 * 1024,                       // 128KB
+            chunk_size: 8 * 1024 * 1024,                   // 8MB chunks for parallel download
+            per_package_timeout: Duration::from_secs(600), // 10 minutes per package max
         }
     }
 }
@@ -223,6 +227,13 @@ impl DownloadConfigBuilder {
     #[must_use]
     pub const fn mmap_threshold(mut self, threshold: u64) -> Self {
         self.config.mmap_threshold = threshold;
+        self
+    }
+
+    /// Set per-package timeout.
+    #[must_use]
+    pub const fn per_package_timeout(mut self, timeout: Duration) -> Self {
+        self.config.per_package_timeout = timeout;
         self
     }
 

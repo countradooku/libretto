@@ -296,7 +296,16 @@ impl ComposerVersion {
             .expect("valid regex")
         });
 
-        let caps = VERSION_REGEX.captures(version_part)?;
+        let caps = match VERSION_REGEX.captures(version_part) {
+            Some(c) => c,
+            None => {
+                if is_dev_suffix {
+                    // Fallback: treat as dev branch (e.g. master-dev -> dev-master)
+                    return Some(Self::dev_branch(version_part));
+                }
+                return None;
+            }
+        };
 
         let major: u64 = caps.get(1)?.as_str().parse().ok()?;
         let minor: u64 = caps.get(2).map_or(0, |m| m.as_str().parse().unwrap_or(0));
@@ -629,14 +638,20 @@ impl ComposerConstraint {
             return Some(constraint);
         }
 
-        // Handle OR constraints (||)
-        if constraint_part.contains("||") {
-            let parts: Vec<&str> = constraint_part.split("||").collect();
+        // Handle OR constraints (|| or |)
+        if constraint_part.contains('|') {
+            // Split by | to handle both | and || (|| results in empty intermediate parts)
+            let parts: Vec<&str> = constraint_part
+                .split('|')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .collect();
+
             let mut ranges = Ranges::empty();
             let mut dev_branches = SmallVec::new();
 
             for part in parts {
-                if let Some(parsed) = Self::parse_single_or_and(part.trim()) {
+                if let Some(parsed) = Self::parse_single_or_and(part) {
                     ranges = ranges.union(&parsed.ranges);
                     for branch in parsed.dev_branches {
                         if !dev_branches.contains(&branch) {
@@ -1236,6 +1251,20 @@ mod tests {
             assert!(c.matches(&ComposerVersion::parse("1.2.0").unwrap()));
             assert!(c.matches(&ComposerVersion::parse("1.2.99").unwrap()));
             assert!(!c.matches(&ComposerVersion::parse("1.3.0").unwrap()));
+
+            // Test major wildcard like 3.*
+            let c3 = ComposerConstraint::parse("3.*").unwrap();
+            assert!(c3.matches(&ComposerVersion::parse("3.0.0").unwrap()));
+            assert!(c3.matches(&ComposerVersion::parse("3.11.0").unwrap()));
+            assert!(c3.matches(&ComposerVersion::parse("3.99.99").unwrap()));
+            assert!(!c3.matches(&ComposerVersion::parse("2.0.0").unwrap()));
+            assert!(!c3.matches(&ComposerVersion::parse("4.0.0").unwrap()));
+
+            // Test 7.* for elasticsearch
+            let c7 = ComposerConstraint::parse("7.*").unwrap();
+            assert!(c7.matches(&ComposerVersion::parse("7.0.0").unwrap()));
+            assert!(c7.matches(&ComposerVersion::parse("7.17.0").unwrap()));
+            assert!(!c7.matches(&ComposerVersion::parse("8.0.0").unwrap()));
         }
 
         #[test]

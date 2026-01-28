@@ -54,17 +54,9 @@ use std::path::PathBuf;
 #[command(arg_required_else_help = true)]
 #[command(styles = get_styles())]
 pub struct Cli {
-    /// Show help information
-    #[arg(short = 'h', long, global = true, action = clap::ArgAction::Help)]
-    help: Option<bool>,
-
     /// Do not output any message
     #[arg(short = 'q', long, global = true)]
     pub quiet: bool,
-
-    /// Show version information
-    #[arg(short = 'V', long, global = true, action = clap::ArgAction::Version)]
-    version: Option<bool>,
 
     /// Force ANSI output (colors and formatting)
     #[arg(long, global = true, conflicts_with = "no_ansi")]
