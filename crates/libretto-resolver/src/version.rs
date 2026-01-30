@@ -1089,6 +1089,7 @@ pub fn clear_caches() {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

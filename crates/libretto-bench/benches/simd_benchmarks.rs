@@ -2,7 +2,7 @@
 //!
 //! Benchmarks comparing SIMD-accelerated operations vs scalar implementations.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use std::time::Duration;
 
 /// Benchmark SIMD-accelerated hashing (BLAKE3).

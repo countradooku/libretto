@@ -296,6 +296,7 @@ impl Extractor {
         self.extract_tar_reader(decoder, dest)
     }
 
+    #[allow(clippy::unused_self)]
     fn extract_7z(&self, archive: &Path, dest: &Path) -> Result<ExtractionResult> {
         let cmd = find_7z_command().ok_or_else(|| {
             Error::Archive("7z/7zz not found. Install p7zip or 7-zip.".to_string())
@@ -303,7 +304,7 @@ impl Extractor {
 
         debug!(cmd = %cmd, archive = ?archive, dest = ?dest, "extracting 7z");
 
-        let output = Command::new(&cmd)
+        let output = Command::new(cmd)
             .arg("x") // Extract with full paths
             .arg("-y") // Assume yes on all queries
             .arg(format!("-o{}", dest.display())) // Output directory
@@ -326,6 +327,7 @@ impl Extractor {
         })
     }
 
+    #[allow(clippy::unused_self)]
     fn extract_rar(&self, archive: &Path, dest: &Path) -> Result<ExtractionResult> {
         debug!(archive = ?archive, dest = ?dest, "extracting rar");
 
@@ -397,13 +399,11 @@ fn count_files_in_dir(dir: &Path) -> (usize, u64) {
     let mut count = 0;
     let mut size = 0u64;
 
-    for entry in WalkDir::new(dir).min_depth(1) {
-        if let Ok(entry) = entry {
-            if entry.file_type().is_file() {
-                count += 1;
-                if let Ok(meta) = entry.metadata() {
-                    size += meta.len();
-                }
+    for entry in WalkDir::new(dir).min_depth(1).into_iter().flatten() {
+        if entry.file_type().is_file() {
+            count += 1;
+            if let Ok(meta) = entry.metadata() {
+                size += meta.len();
             }
         }
     }
@@ -476,11 +476,10 @@ pub fn create_zip<W: std::io::Write + Seek>(
             .strip_prefix(source)
             .map_err(|e| Error::Archive(e.to_string()))?;
 
-        let name = if let Some(p) = prefix {
-            PathBuf::from(p).join(relative)
-        } else {
-            relative.to_path_buf()
-        };
+        let name = prefix.map_or_else(
+            || relative.to_path_buf(),
+            |p| PathBuf::from(p).join(relative),
+        );
 
         let name_str = name.to_string_lossy();
 

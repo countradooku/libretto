@@ -301,6 +301,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::similar_names)]
     fn test_validate_url() {
         let https_url = Url::parse("https://packagist.org").unwrap();
         assert!(validate_url(&https_url, false).is_ok());

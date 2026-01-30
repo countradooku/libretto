@@ -2,7 +2,7 @@
 //!
 //! Benchmarks for memory usage tracking and allocator comparison.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use libretto_bench::{current_rss_bytes, peak_memory_bytes};
 use std::time::Duration;
 

@@ -192,9 +192,7 @@ impl Scanner {
             return None;
         }
 
-        let metadata = if let Ok(m) = std::fs::metadata(path) {
-            m
-        } else {
+        let Ok(metadata) = std::fs::metadata(path) else {
             self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
             return None;
         };
@@ -208,9 +206,7 @@ impl Scanner {
         let size = metadata.len();
 
         // Read file and compute hash
-        let content = if let Ok(c) = std::fs::read(path) {
-            c
-        } else {
+        let Ok(content) = std::fs::read(path) else {
             self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
             return None;
         };
@@ -297,6 +293,7 @@ impl Scanner {
         self.exclude.should_exclude(path)
     }
 
+    #[allow(clippy::unused_self)]
     fn is_php_file(&self, entry: &DirEntry) -> bool {
         if !entry.file_type().is_file() {
             return false;

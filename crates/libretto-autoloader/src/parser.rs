@@ -109,9 +109,8 @@ impl PhpParser {
     /// Parse PHP content from bytes.
     #[must_use]
     pub fn parse_bytes(&mut self, content: &[u8]) -> Vec<PhpDefinition> {
-        let tree = match self.parser.parse(content, None) {
-            Some(t) => t,
-            None => return Vec::new(),
+        let Some(tree) = self.parser.parse(content, None) else {
+            return Vec::new();
         };
 
         let root = tree.root_node();
@@ -169,10 +168,9 @@ impl PhpParser {
 
                     if is_name {
                         let name = text.to_string();
-                        let fqcn = match &current_namespace {
-                            Some(ns) => format!("{ns}\\{name}"),
-                            None => name.clone(),
-                        };
+                        let fqcn = current_namespace
+                            .as_ref()
+                            .map_or_else(|| name.clone(), |ns| format!("{ns}\\{name}"));
 
                         definitions.push(PhpDefinition {
                             fqcn,
@@ -220,13 +218,13 @@ mod tests {
     #[test]
     fn parse_simple_class() {
         let mut parser = PhpParser::new();
-        let content = r#"<?php
+        let content = r"<?php
 namespace App\Models;
 
 class User {
     public $name;
 }
-"#;
+";
 
         let defs = parser.parse_str(content);
         assert_eq!(defs.len(), 1);
@@ -239,13 +237,13 @@ class User {
     #[test]
     fn parse_interface() {
         let mut parser = PhpParser::new();
-        let content = r#"<?php
+        let content = r"<?php
 namespace App\Contracts;
 
 interface UserRepositoryInterface {
     public function find(int $id): ?User;
 }
-"#;
+";
 
         let defs = parser.parse_str(content);
         assert_eq!(defs.len(), 1);
@@ -256,7 +254,7 @@ interface UserRepositoryInterface {
     #[test]
     fn parse_trait() {
         let mut parser = PhpParser::new();
-        let content = r#"<?php
+        let content = r"<?php
 namespace App\Traits;
 
 trait HasUuid {
@@ -264,7 +262,7 @@ trait HasUuid {
         return bin2hex(random_bytes(16));
     }
 }
-"#;
+";
 
         let defs = parser.parse_str(content);
         assert_eq!(defs.len(), 1);
@@ -275,7 +273,7 @@ trait HasUuid {
     #[test]
     fn parse_enum() {
         let mut parser = PhpParser::new();
-        let content = r#"<?php
+        let content = r"<?php
 namespace App\Enums;
 
 enum Status: string {
@@ -283,7 +281,7 @@ enum Status: string {
     case Active = 'active';
     case Inactive = 'inactive';
 }
-"#;
+";
 
         let defs = parser.parse_str(content);
         assert_eq!(defs.len(), 1);
@@ -294,7 +292,7 @@ enum Status: string {
     #[test]
     fn parse_multiple_definitions() {
         let mut parser = PhpParser::new();
-        let content = r#"<?php
+        let content = r"<?php
 namespace App\Models;
 
 class User {}
@@ -304,7 +302,7 @@ interface Authenticatable {}
 trait HasTimestamps {}
 
 enum UserType: int {}
-"#;
+";
 
         let defs = parser.parse_str(content);
         assert_eq!(defs.len(), 4);
@@ -313,10 +311,10 @@ enum UserType: int {}
     #[test]
     fn parse_no_namespace() {
         let mut parser = PhpParser::new();
-        let content = r#"<?php
+        let content = r"<?php
 class GlobalClass {
 }
-"#;
+";
 
         let defs = parser.parse_str(content);
         assert_eq!(defs.len(), 1);
