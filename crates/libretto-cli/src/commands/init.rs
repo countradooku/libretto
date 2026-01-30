@@ -17,7 +17,7 @@ pub struct InitArgs {
     #[arg(long)]
     pub description: Option<String>,
 
-    /// Author (name <email>)
+    /// Author (name `<email>`)
     #[arg(long)]
     pub author: Option<String>,
 

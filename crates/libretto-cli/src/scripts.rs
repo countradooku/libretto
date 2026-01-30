@@ -55,7 +55,7 @@ fn get_composer_stubs() -> &'static str {
 /// Script event types for lifecycle hooks.
 ///
 /// This enum covers ALL Composer script events for full compatibility.
-/// See: https://getcomposer.org/doc/articles/scripts.md
+/// See: <https://getcomposer.org/doc/articles/scripts.md>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(dead_code)]
 pub enum ScriptEvent {

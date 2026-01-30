@@ -494,6 +494,8 @@ mod tests {
     #[cfg(feature = "tls")]
     #[test]
     fn tls_connector_creation() {
+        // Install the ring crypto provider for rustls
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let connector = TlsConnector::new();
         assert!(connector.is_ok());
     }
@@ -501,6 +503,8 @@ mod tests {
     #[cfg(feature = "tls")]
     #[test]
     fn tls_config_build() {
+        // Install the ring crypto provider for rustls
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let config = TlsConfig::new().build_client_config();
         assert!(config.is_ok());
     }
