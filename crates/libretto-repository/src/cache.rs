@@ -1,4 +1,4 @@
-//! Repository caching layer with TTL, ETags, and statistics.
+//! Repository caching layer with TTL, `ETags`, and statistics.
 
 use crate::client::CacheMetadata;
 use dashmap::DashMap;
@@ -6,8 +6,8 @@ use libretto_cache::{CacheEntryType, TieredCache};
 use libretto_core::{ContentHash, Error, Result};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tracing::debug;
 
@@ -95,7 +95,7 @@ pub struct CachedEntry {
     pub cached_at_secs: u64,
     /// TTL in seconds.
     pub ttl_secs: u64,
-    /// ETag if available.
+    /// `ETag` if available.
     pub etag: Option<String>,
     /// Last-Modified if available.
     pub last_modified: Option<String>,
@@ -139,7 +139,7 @@ struct MemoryCacheEntry {
     cached_at: Instant,
     /// TTL.
     ttl: Duration,
-    /// ETag if available.
+    /// `ETag` if available.
     etag: Option<String>,
     /// Last-Modified if available.
     last_modified: Option<String>,
@@ -157,7 +157,7 @@ pub struct RepositoryCache {
     memory: DashMap<String, MemoryCacheEntry>,
     /// Persistent tiered cache.
     tiered: Option<Arc<TieredCache>>,
-    /// HTTP metadata cache (ETags, Last-Modified).
+    /// HTTP metadata cache (`ETags`, Last-Modified).
     http_metadata: DashMap<String, CacheMetadata>,
     /// Statistics.
     stats: Arc<RepositoryCacheStats>,
@@ -316,14 +316,14 @@ impl RepositoryCache {
     #[must_use]
     pub fn get_http_metadata(&self, key: &str) -> Option<CacheMetadata> {
         // Check memory cache first
-        if let Some(entry) = self.memory.get(key) {
-            if entry.etag.is_some() || entry.last_modified.is_some() {
-                return Some(CacheMetadata {
-                    etag: entry.etag.clone(),
-                    last_modified: entry.last_modified.clone(),
-                    cached_at: entry.cached_at,
-                });
-            }
+        if let Some(entry) = self.memory.get(key)
+            && (entry.etag.is_some() || entry.last_modified.is_some())
+        {
+            return Some(CacheMetadata {
+                etag: entry.etag.clone(),
+                last_modified: entry.last_modified.clone(),
+                cached_at: entry.cached_at,
+            });
         }
 
         // Check dedicated HTTP metadata cache
@@ -392,7 +392,7 @@ impl RepositoryCache {
 
         // Evict expired entries first
         let mut to_remove = Vec::new();
-        for entry in self.memory.iter() {
+        for entry in &self.memory {
             if entry.is_expired() {
                 to_remove.push(entry.key().clone());
             }

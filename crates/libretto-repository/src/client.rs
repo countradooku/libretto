@@ -4,15 +4,15 @@ use crate::error::{RepositoryError, Result};
 use backon::{ExponentialBuilder, Retryable};
 use dashmap::DashMap;
 use governor::{
+    Quota, RateLimiter,
     clock::DefaultClock,
     state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
 };
 use parking_lot::RwLock;
-use reqwest::{header, Client, Response, StatusCode};
+use reqwest::{Client, Response, StatusCode, header};
 use std::num::NonZeroU32;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tracing::{debug, warn};
 use url::Url;
@@ -56,10 +56,10 @@ impl Default for HttpClientConfig {
     }
 }
 
-/// ETag and Last-Modified cache entry.
+/// `ETag` and Last-Modified cache entry.
 #[derive(Debug, Clone)]
 pub struct CacheMetadata {
-    /// ETag header value.
+    /// `ETag` header value.
     pub etag: Option<String>,
     /// Last-Modified header value.
     pub last_modified: Option<String>,
@@ -135,7 +135,7 @@ pub struct HttpResponse {
     pub body: bytes::Bytes,
     /// HTTP status code.
     pub status: StatusCode,
-    /// ETag header if present.
+    /// `ETag` header if present.
     pub etag: Option<String>,
     /// Last-Modified header if present.
     pub last_modified: Option<String>,
@@ -558,10 +558,10 @@ pub enum AuthType {
 fn parse_max_age(cache_control: &str) -> Option<Duration> {
     for directive in cache_control.split(',') {
         let directive = directive.trim();
-        if let Some(value) = directive.strip_prefix("max-age=") {
-            if let Ok(seconds) = value.trim().parse::<u64>() {
-                return Some(Duration::from_secs(seconds));
-            }
+        if let Some(value) = directive.strip_prefix("max-age=")
+            && let Ok(seconds) = value.trim().parse::<u64>()
+        {
+            return Some(Duration::from_secs(seconds));
         }
     }
     None

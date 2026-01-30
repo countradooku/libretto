@@ -62,7 +62,7 @@ pub async fn run(args: ArchiveArgs) -> Result<()> {
 
     let version = args.version.as_deref().unwrap_or("dev-main");
 
-    info(&format!("Packaging {} ({})", package_name, version));
+    info(&format!("Packaging {package_name} ({version})"));
 
     // Validate format
     let valid_formats = ["zip", "tar", "tar.gz", "tar.bz2", "tar.xz"];

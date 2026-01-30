@@ -1,7 +1,7 @@
 //! High-performance JSON operations using sonic-rs.
 
 use crate::{Error, Result};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 /// Deserialize JSON string.
 ///
@@ -52,8 +52,8 @@ mod tests {
             name: "test".into(),
             value: 42,
         };
-        let json = to_json(&orig).unwrap();
-        let parsed: Test = from_json(&json).unwrap();
+        let json = to_json(&orig).expect("serialization should succeed");
+        let parsed: Test = from_json(&json).expect("deserialization should succeed");
         assert_eq!(orig, parsed);
     }
 
@@ -63,7 +63,7 @@ mod tests {
             name: "x".into(),
             value: 1,
         };
-        let pretty = to_json_pretty(&val).unwrap();
+        let pretty = to_json_pretty(&val).expect("pretty printing should succeed");
         assert!(pretty.contains('\n'));
     }
 }

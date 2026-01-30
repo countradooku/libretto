@@ -61,24 +61,18 @@ impl AtomicWriter {
     /// Returns error if lock cannot be acquired.
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
         let target = path.as_ref().to_path_buf();
-        let lock_file_path = target.with_extension(
-            target
-                .extension()
-                .map(|e| format!("{}.{}", e.to_string_lossy(), &LOCK_SUFFIX[1..]))
-                .unwrap_or_else(|| LOCK_SUFFIX[1..].to_string()),
-        );
-        let temp_path = target.with_extension(
-            target
-                .extension()
-                .map(|e| format!("{}.{}", e.to_string_lossy(), &TEMP_SUFFIX[1..]))
-                .unwrap_or_else(|| TEMP_SUFFIX[1..].to_string()),
-        );
-        let backup_path = target.with_extension(
-            target
-                .extension()
-                .map(|e| format!("{}.{}", e.to_string_lossy(), &BACKUP_SUFFIX[1..]))
-                .unwrap_or_else(|| BACKUP_SUFFIX[1..].to_string()),
-        );
+        let lock_file_path = target.with_extension(target.extension().map_or_else(
+            || LOCK_SUFFIX[1..].to_string(),
+            |e| format!("{}.{}", e.to_string_lossy(), &LOCK_SUFFIX[1..]),
+        ));
+        let temp_path = target.with_extension(target.extension().map_or_else(
+            || TEMP_SUFFIX[1..].to_string(),
+            |e| format!("{}.{}", e.to_string_lossy(), &TEMP_SUFFIX[1..]),
+        ));
+        let backup_path = target.with_extension(target.extension().map_or_else(
+            || BACKUP_SUFFIX[1..].to_string(),
+            |e| format!("{}.{}", e.to_string_lossy(), &BACKUP_SUFFIX[1..]),
+        ));
 
         debug!(target = %target.display(), "Creating atomic writer");
 
@@ -106,7 +100,7 @@ impl AtomicWriter {
     }
 
     /// Disable backup creation.
-    pub fn no_backup(&mut self) -> &mut Self {
+    pub const fn no_backup(&mut self) -> &mut Self {
         self.create_backup = false;
         self
     }
@@ -126,10 +120,8 @@ impl AtomicWriter {
         );
 
         // Create parent directory if needed
-        if let Some(parent) = self.target.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| LockfileError::io(&self.target, e))?;
-            }
+        if let Some(parent) = self.target.parent().filter(|p| !p.exists()) {
+            fs::create_dir_all(parent).map_err(|e| LockfileError::io(&self.target, e))?;
         }
 
         // Write to temp file
@@ -180,10 +172,8 @@ impl AtomicWriter {
 
         // Sync parent directory (for POSIX crash safety)
         #[cfg(unix)]
-        if let Some(parent) = self.target.parent() {
-            if let Ok(dir) = File::open(parent) {
-                let _ = dir.sync_all();
-            }
+        if let Some(dir) = self.target.parent().and_then(|p| File::open(p).ok()) {
+            let _ = dir.sync_all();
         }
 
         debug!(target = %self.target.display(), "Atomic write completed");
@@ -248,12 +238,10 @@ impl AtomicReader {
     /// Returns error if lock cannot be acquired.
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
         let target = path.as_ref().to_path_buf();
-        let lock_file_path = target.with_extension(
-            target
-                .extension()
-                .map(|e| format!("{}.{}", e.to_string_lossy(), &LOCK_SUFFIX[1..]))
-                .unwrap_or_else(|| LOCK_SUFFIX[1..].to_string()),
-        );
+        let lock_file_path = target.with_extension(target.extension().map_or_else(
+            || LOCK_SUFFIX[1..].to_string(),
+            |e| format!("{}.{}", e.to_string_lossy(), &LOCK_SUFFIX[1..]),
+        ));
 
         // Acquire shared lock
         let lock_file = acquire_shared_lock(&lock_file_path)?;
@@ -305,10 +293,8 @@ fn acquire_lock(path: &Path) -> Result<File> {
     use std::io::ErrorKind;
 
     // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent).map_err(|e| LockfileError::io(path, e))?;
-        }
+    if let Some(parent) = path.parent().filter(|p| !p.exists()) {
+        fs::create_dir_all(parent).map_err(|e| LockfileError::io(path, e))?;
     }
 
     let file = OpenOptions::new()
@@ -349,10 +335,8 @@ fn acquire_shared_lock(path: &Path) -> Result<File> {
     use std::io::ErrorKind;
 
     // Ensure parent directory exists
-    if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            fs::create_dir_all(parent).map_err(|e| LockfileError::io(path, e))?;
-        }
+    if let Some(parent) = path.parent().filter(|p| !p.exists()) {
+        fs::create_dir_all(parent).map_err(|e| LockfileError::io(path, e))?;
     }
 
     let file = OpenOptions::new()
@@ -652,7 +636,12 @@ pub fn recover(directory: &Path) -> Result<RecoveryResult> {
                 .trim_end_matches(".txn.backup");
             let original_path = directory.join(original_name);
 
-            if !original_path.exists() {
+            if original_path.exists() {
+                // Original exists, backup is stale
+                debug!(path = %path.display(), "Removing stale backup");
+                fs::remove_file(&path).map_err(|e| LockfileError::io(&path, e))?;
+                result.backups_cleaned += 1;
+            } else {
                 // Restore from backup
                 debug!(
                     backup = %path.display(),
@@ -661,11 +650,6 @@ pub fn recover(directory: &Path) -> Result<RecoveryResult> {
                 );
                 fs::rename(&path, &original_path).map_err(|e| LockfileError::io(&path, e))?;
                 result.files_restored += 1;
-            } else {
-                // Original exists, backup is stale
-                debug!(path = %path.display(), "Removing stale backup");
-                fs::remove_file(&path).map_err(|e| LockfileError::io(&path, e))?;
-                result.backups_cleaned += 1;
             }
         }
     }
@@ -699,7 +683,7 @@ pub struct RecoveryResult {
 impl RecoveryResult {
     /// Check if any cleanup was performed.
     #[must_use]
-    pub fn has_changes(&self) -> bool {
+    pub const fn has_changes(&self) -> bool {
         self.temp_files_cleaned > 0
             || self.lock_files_cleaned > 0
             || self.backups_cleaned > 0

@@ -7,57 +7,57 @@ use std::path::PathBuf;
 /// Well-known Composer environment variables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComposerEnvVar {
-    /// COMPOSER_HOME - global configuration directory.
+    /// `COMPOSER_HOME` - global configuration directory.
     Home,
-    /// COMPOSER_CACHE_DIR - cache directory.
+    /// `COMPOSER_CACHE_DIR` - cache directory.
     CacheDir,
-    /// COMPOSER_PROCESS_TIMEOUT - process timeout in seconds.
+    /// `COMPOSER_PROCESS_TIMEOUT` - process timeout in seconds.
     ProcessTimeout,
-    /// COMPOSER_ALLOW_SUPERUSER - allow running as root.
+    /// `COMPOSER_ALLOW_SUPERUSER` - allow running as root.
     AllowSuperuser,
-    /// COMPOSER_AUTH - inline auth.json content.
+    /// `COMPOSER_AUTH` - inline auth.json content.
     Auth,
-    /// COMPOSER_DISABLE_NETWORK - disable network access.
+    /// `COMPOSER_DISABLE_NETWORK` - disable network access.
     DisableNetwork,
-    /// COMPOSER_NO_INTERACTION - non-interactive mode.
+    /// `COMPOSER_NO_INTERACTION` - non-interactive mode.
     NoInteraction,
-    /// COMPOSER_VENDOR_DIR - vendor directory.
+    /// `COMPOSER_VENDOR_DIR` - vendor directory.
     VendorDir,
-    /// COMPOSER_BIN_DIR - binaries directory.
+    /// `COMPOSER_BIN_DIR` - binaries directory.
     BinDir,
-    /// COMPOSER_HTACCESS_PROTECT - protect vendor with .htaccess.
+    /// `COMPOSER_HTACCESS_PROTECT` - protect vendor with .htaccess.
     HtaccessProtect,
-    /// COMPOSER_MEMORY_LIMIT - memory limit override.
+    /// `COMPOSER_MEMORY_LIMIT` - memory limit override.
     MemoryLimit,
-    /// COMPOSER_MIRROR_PATH_REPOS - mirror path repositories.
+    /// `COMPOSER_MIRROR_PATH_REPOS` - mirror path repositories.
     MirrorPathRepos,
-    /// COMPOSER_ROOT_VERSION - root package version.
+    /// `COMPOSER_ROOT_VERSION` - root package version.
     RootVersion,
-    /// COMPOSER_DISABLE_XDEBUG_WARN - disable Xdebug warning.
+    /// `COMPOSER_DISABLE_XDEBUG_WARN` - disable Xdebug warning.
     DisableXdebugWarn,
-    /// COMPOSER_FUND - enable funding messages.
+    /// `COMPOSER_FUND` - enable funding messages.
     Fund,
-    /// COMPOSER_AUDIT_ABANDONED - abandoned package handling.
+    /// `COMPOSER_AUDIT_ABANDONED` - abandoned package handling.
     AuditAbandoned,
     /// COMPOSER - path to composer.json.
     Composer,
-    /// COMPOSER_ORIGINAL_INIS - original PHP ini files.
+    /// `COMPOSER_ORIGINAL_INIS` - original PHP ini files.
     OriginalInis,
-    /// COMPOSER_RUNTIME_ENV - runtime environment.
+    /// `COMPOSER_RUNTIME_ENV` - runtime environment.
     RuntimeEnv,
-    /// HTTP_PROXY - HTTP proxy.
+    /// `HTTP_PROXY` - HTTP proxy.
     HttpProxy,
-    /// HTTPS_PROXY - HTTPS proxy.
+    /// `HTTPS_PROXY` - HTTPS proxy.
     HttpsProxy,
-    /// NO_PROXY - no-proxy hosts.
+    /// `NO_PROXY` - no-proxy hosts.
     NoProxy,
-    /// http_proxy - HTTP proxy (lowercase).
+    /// `http_proxy` - HTTP proxy (lowercase).
     HttpProxyLower,
-    /// https_proxy - HTTPS proxy (lowercase).
+    /// `https_proxy` - HTTPS proxy (lowercase).
     HttpsProxyLower,
-    /// no_proxy - no-proxy hosts (lowercase).
+    /// `no_proxy` - no-proxy hosts (lowercase).
     NoProxyLower,
-    /// CGI_HTTP_PROXY - CGI HTTP proxy.
+    /// `CGI_HTTP_PROXY` - CGI HTTP proxy.
     CgiHttpProxy,
 }
 
@@ -130,9 +130,9 @@ impl ComposerEnvVar {
 /// Environment configuration reader.
 #[derive(Debug, Default)]
 pub struct EnvConfig {
-    /// COMPOSER_HOME directory.
+    /// `COMPOSER_HOME` directory.
     pub home: Option<PathBuf>,
-    /// COMPOSER_CACHE_DIR directory.
+    /// `COMPOSER_CACHE_DIR` directory.
     pub cache_dir: Option<PathBuf>,
     /// Process timeout in seconds.
     pub process_timeout: Option<u32>,
@@ -224,13 +224,13 @@ impl EnvConfig {
 
     /// Check if running in non-interactive mode.
     #[must_use]
-    pub fn is_non_interactive(&self) -> bool {
+    pub const fn is_non_interactive(&self) -> bool {
         self.no_interaction
     }
 
     /// Check if network is disabled.
     #[must_use]
-    pub fn is_offline(&self) -> bool {
+    pub const fn is_offline(&self) -> bool {
         self.disable_network
     }
 
@@ -311,7 +311,7 @@ pub fn parse_byte_size(s: &str) -> Result<u64> {
                 "size",
                 format!("unknown unit: {unit}"),
                 "use B, K, M, G, or T",
-            ))
+            ));
         }
     };
 
@@ -360,7 +360,7 @@ pub fn parse_duration_secs(s: &str) -> Result<u32> {
                 "duration",
                 format!("unknown unit: {unit}"),
                 "use s, m, h, or d",
-            ))
+            ));
         }
     };
 

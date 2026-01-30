@@ -252,30 +252,28 @@ impl HttpClient {
         }
 
         // Check Bearer token
-        if let Some(token) = auth.get_bearer(host) {
-            if let Ok(value) = HeaderValue::from_str(&format!("Bearer {token}")) {
-                headers.insert(AUTHORIZATION, value);
-                return;
-            }
+        if let Some(token) = auth.get_bearer(host)
+            && let Ok(value) = HeaderValue::from_str(&format!("Bearer {token}"))
+        {
+            headers.insert(AUTHORIZATION, value);
+            return;
         }
 
         // Check GitHub OAuth
-        if host.contains("github.com") || host.contains("api.github.com") {
-            if let Some(token) = auth.get_github_oauth("github.com") {
-                if let Ok(value) = HeaderValue::from_str(&format!("token {token}")) {
-                    headers.insert(AUTHORIZATION, value);
-                    return;
-                }
-            }
+        if (host.contains("github.com") || host.contains("api.github.com"))
+            && let Some(token) = auth.get_github_oauth("github.com")
+            && let Ok(value) = HeaderValue::from_str(&format!("token {token}"))
+        {
+            headers.insert(AUTHORIZATION, value);
+            return;
         }
 
         // Check GitLab token
-        if host.contains("gitlab.com") || host.contains("gitlab") {
-            if let Some(token) = auth.get_gitlab_token(host) {
-                if let Ok(value) = HeaderValue::from_str(token) {
-                    headers.insert("PRIVATE-TOKEN", value);
-                }
-            }
+        if (host.contains("gitlab.com") || host.contains("gitlab"))
+            && let Some(token) = auth.get_gitlab_token(host)
+            && let Ok(value) = HeaderValue::from_str(token)
+        {
+            headers.insert("PRIVATE-TOKEN", value);
         }
     }
 

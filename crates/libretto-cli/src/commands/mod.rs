@@ -5,6 +5,7 @@ pub mod audit;
 pub mod dump_autoload;
 pub mod init;
 pub mod install;
+pub mod lock_generator;
 pub mod remove;
 pub mod require;
 pub mod search;
@@ -136,7 +137,7 @@ pub enum Commands {
     Bump(bump::BumpArgs),
 
     /// Clears composer's internal package cache
-    #[command(name = "cache:clear", visible_alias = "clearcache", alias = "cc")]
+    #[command(name = "clear-cache", visible_alias = "clearcache", alias = "cc")]
     CacheClear(cache::CacheClearArgs),
 
     /// Lists packages in the cache
@@ -174,7 +175,7 @@ pub enum Commands {
     /// Discover how to help fund the maintenance of your dependencies
     Fund(fund::FundArgs),
 
-    /// Allows running commands in the global composer dir ($COMPOSER_HOME)
+    /// Allows running commands in the global composer dir ($`COMPOSER_HOME`)
     Global(global::GlobalArgs),
 
     /// Creates a basic composer.json file in current directory
@@ -263,7 +264,7 @@ pub enum SortOrder {
 }
 
 /// Get clap styles for colored help
-fn get_styles() -> clap::builder::Styles {
+const fn get_styles() -> clap::builder::Styles {
     clap::builder::Styles::styled()
         .header(clap::builder::styling::AnsiColor::Green.on_default().bold())
         .usage(clap::builder::styling::AnsiColor::Green.on_default().bold())

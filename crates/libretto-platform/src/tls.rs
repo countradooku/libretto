@@ -55,7 +55,7 @@ impl TlsConfig {
         self
     }
 
-    /// Use WebPKI root certificates.
+    /// Use `WebPKI` root certificates.
     #[must_use]
     pub fn with_webpki_roots(mut self) -> Self {
         self.root_certs = RootCertificates::WebPki;
@@ -216,7 +216,7 @@ impl Default for TlsConfig {
 /// Root certificate source.
 #[derive(Debug, Clone)]
 pub enum RootCertificates {
-    /// Use WebPKI root certificates (bundled).
+    /// Use `WebPKI` root certificates (bundled).
     WebPki,
     /// Use system root certificates.
     System,
@@ -264,7 +264,7 @@ pub enum TlsVersion {
 }
 
 impl TlsVersion {
-    /// Get as rustls SupportedProtocolVersion.
+    /// Get as rustls `SupportedProtocolVersion`.
     #[cfg(feature = "tls")]
     #[must_use]
     pub const fn as_rustls(&self) -> &'static rustls::SupportedProtocolVersion {
@@ -282,7 +282,7 @@ impl TlsVersion {
 /// Returns error if file cannot be read or parsed.
 #[cfg(feature = "tls")]
 pub fn load_certificates_from_file(path: &Path) -> Result<Vec<CertificateDer<'static>>> {
-    let file = std::fs::File::open(path).map_err(|e| PlatformError::io(path, e))?;
+    let file = std::fs::File::open(path).map_err(|e| PlatformError::io(path, &e))?;
     let mut reader = BufReader::new(file);
     load_certificates_from_reader(&mut reader)
 }
@@ -302,7 +302,7 @@ fn load_certificates_from_reader<R: Read>(
     reader: &mut BufReader<R>,
 ) -> Result<Vec<CertificateDer<'static>>> {
     let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(reader)
-        .filter_map(|r| r.ok())
+        .filter_map(std::result::Result::ok)
         .collect();
 
     if certs.is_empty() {
@@ -320,7 +320,7 @@ fn load_certificates_from_reader<R: Read>(
 /// Returns error if file cannot be read or parsed.
 #[cfg(feature = "tls")]
 pub fn load_private_key_from_file(path: &Path) -> Result<PrivateKeyDer<'static>> {
-    let file = std::fs::File::open(path).map_err(|e| PlatformError::io(path, e))?;
+    let file = std::fs::File::open(path).map_err(|e| PlatformError::io(path, &e))?;
     let mut reader = BufReader::new(file);
     load_private_key_from_reader(&mut reader)
 }
@@ -442,7 +442,7 @@ impl TlsConnector {
         Ok(Self { config })
     }
 
-    /// Create from a TlsConfig.
+    /// Create from a `TlsConfig`.
     ///
     /// # Errors
     /// Returns error if TLS setup fails.
@@ -453,7 +453,7 @@ impl TlsConnector {
         })
     }
 
-    /// Get the inner rustls ClientConfig.
+    /// Get the inner rustls `ClientConfig`.
     #[must_use]
     pub fn config(&self) -> Arc<rustls::ClientConfig> {
         Arc::clone(&self.config)

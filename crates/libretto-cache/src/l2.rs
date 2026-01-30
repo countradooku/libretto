@@ -5,7 +5,7 @@
 
 use crate::compression;
 use crate::config::{CacheConfig, CacheEntryType};
-use crate::index::{create_entry, CacheIndex, IndexEntry};
+use crate::index::{CacheIndex, IndexEntry, create_entry};
 use libretto_core::{ContentHash, Error, Result};
 use memmap2::MmapOptions;
 use std::fs::{self, File};

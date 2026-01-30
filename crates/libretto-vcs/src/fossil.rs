@@ -15,6 +15,7 @@ pub struct FossilRepository {
 
 impl FossilRepository {
     /// Check if Fossil is available.
+    #[must_use]
     pub fn is_available() -> bool {
         Command::new("fossil")
             .arg("version")
@@ -254,17 +255,17 @@ impl FossilRepository {
             .args(["info", "--short"])
             .output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                // Extract the checkout hash
-                for line in stdout.lines() {
-                    if line.starts_with("checkout:") {
-                        if let Some(hash) = line.split_whitespace().nth(1) {
-                            status.head = hash.to_string();
-                            break;
-                        }
-                    }
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            // Extract the checkout hash
+            for line in stdout.lines() {
+                if line.starts_with("checkout:")
+                    && let Some(hash) = line.split_whitespace().nth(1)
+                {
+                    status.head = hash.to_string();
+                    break;
                 }
             }
         }

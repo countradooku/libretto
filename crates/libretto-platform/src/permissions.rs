@@ -237,6 +237,7 @@ impl Rwx {
 }
 
 /// Permission operations trait.
+#[allow(clippy::missing_errors_doc)]
 pub trait PermissionOps {
     /// Get file permissions.
     fn get_permissions(path: &Path) -> Result<FilePermissions>;
@@ -265,14 +266,14 @@ pub struct PlatformPermissions;
 impl PermissionOps for PlatformPermissions {
     fn get_permissions(path: &Path) -> Result<FilePermissions> {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         Ok(FilePermissions::from_mode(metadata.permissions().mode()))
     }
 
     fn set_permissions(path: &Path, perm: FilePermissions) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         let permissions = std::fs::Permissions::from_mode(perm.mode());
-        std::fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, e))
+        std::fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, &e))
     }
 
     fn make_executable(path: &Path) -> Result<()> {
@@ -315,7 +316,7 @@ impl PermissionOps for PlatformPermissions {
 #[cfg(windows)]
 impl PermissionOps for PlatformPermissions {
     fn get_permissions(path: &Path) -> Result<FilePermissions> {
-        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
 
         // Windows only has read-only concept
         if metadata.permissions().readonly() {
@@ -327,12 +328,12 @@ impl PermissionOps for PlatformPermissions {
 
     fn set_permissions(path: &Path, perm: FilePermissions) -> Result<()> {
         let mut permissions = std::fs::metadata(path)
-            .map_err(|e| PlatformError::io(path, e))?
+            .map_err(|e| PlatformError::io(path, &e))?
             .permissions();
 
         // Set read-only if no write bits
         permissions.set_readonly(!perm.is_writable());
-        std::fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, e))
+        std::fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, &e))
     }
 
     fn make_executable(path: &Path) -> Result<()> {
@@ -346,11 +347,11 @@ impl PermissionOps for PlatformPermissions {
 
     fn make_readonly(path: &Path) -> Result<()> {
         let mut permissions = std::fs::metadata(path)
-            .map_err(|e| PlatformError::io(path, e))?
+            .map_err(|e| PlatformError::io(path, &e))?
             .permissions();
 
         permissions.set_readonly(true);
-        std::fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, e))
+        std::fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, &e))
     }
 
     fn get_umask() -> u32 {
@@ -367,7 +368,7 @@ impl PermissionOps for PlatformPermissions {
 /// Unix-specific user/group operations.
 #[cfg(unix)]
 pub mod unix {
-    use super::*;
+    use super::{Path, PlatformError, Result};
 
     /// Get the owner UID of a file.
     ///
@@ -375,7 +376,7 @@ pub mod unix {
     /// Returns error if metadata cannot be read.
     pub fn get_owner(path: &Path) -> Result<u32> {
         use std::os::unix::fs::MetadataExt;
-        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         Ok(metadata.uid())
     }
 
@@ -385,7 +386,7 @@ pub mod unix {
     /// Returns error if metadata cannot be read.
     pub fn get_group(path: &Path) -> Result<u32> {
         use std::os::unix::fs::MetadataExt;
-        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         Ok(metadata.gid())
     }
 
@@ -394,13 +395,13 @@ pub mod unix {
     /// # Errors
     /// Returns error if chown fails.
     pub fn chown(path: &Path, uid: Option<u32>, gid: Option<u32>) -> Result<()> {
-        use nix::unistd::{chown as nix_chown, Gid, Uid};
+        use nix::unistd::{Gid, Uid, chown as nix_chown};
 
         let uid = uid.map(Uid::from_raw);
         let gid = gid.map(Gid::from_raw);
 
         nix_chown(path, uid, gid)
-            .map_err(|e| PlatformError::io(path, std::io::Error::from_raw_os_error(e as i32)))
+            .map_err(|e| PlatformError::io(path, &std::io::Error::from_raw_os_error(e as i32)))
     }
 
     /// Get current user's UID.
@@ -526,7 +527,7 @@ pub mod windows {
     /// Returns error if attributes cannot be read.
     pub fn get_attributes(path: &Path) -> Result<FileAttributes> {
         use std::os::windows::fs::MetadataExt;
-        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = std::fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         Ok(FileAttributes::from_raw(metadata.file_attributes()))
     }
 
@@ -550,7 +551,7 @@ pub mod windows {
         if result != 0 {
             Ok(())
         } else {
-            Err(PlatformError::io(path, std::io::Error::last_os_error()))
+            Err(PlatformError::io(path, &std::io::Error::last_os_error()))
         }
     }
 

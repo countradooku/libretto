@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use clap::{Args, CommandFactory, ValueEnum};
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use std::io;
 
 /// Arguments for the completion command
@@ -22,7 +22,7 @@ pub enum ShellType {
     Zsh,
     /// Fish shell
     Fish,
-    /// PowerShell
+    /// `PowerShell`
     #[value(alias = "powershell")]
     PowerShell,
     /// Elvish shell
@@ -32,11 +32,11 @@ pub enum ShellType {
 impl From<ShellType> for Shell {
     fn from(shell: ShellType) -> Self {
         match shell {
-            ShellType::Bash => Shell::Bash,
-            ShellType::Zsh => Shell::Zsh,
-            ShellType::Fish => Shell::Fish,
-            ShellType::PowerShell => Shell::PowerShell,
-            ShellType::Elvish => Shell::Elvish,
+            ShellType::Bash => Self::Bash,
+            ShellType::Zsh => Self::Zsh,
+            ShellType::Fish => Self::Fish,
+            ShellType::PowerShell => Self::PowerShell,
+            ShellType::Elvish => Self::Elvish,
         }
     }
 }
@@ -58,7 +58,7 @@ pub async fn run(args: CompletionArgs) -> Result<()> {
     Ok(())
 }
 
-fn get_installation_instructions(shell: ShellType) -> &'static str {
+const fn get_installation_instructions(shell: ShellType) -> &'static str {
     match shell {
         ShellType::Bash => {
             r#"# Add to ~/.bashrc or ~/.bash_profile:
@@ -75,18 +75,18 @@ fn get_installation_instructions(shell: ShellType) -> &'static str {
         }
 
         ShellType::Fish => {
-            r#"# Save to fish completions directory:
-# libretto completion fish > ~/.config/fish/completions/libretto.fish"#
+            r"# Save to fish completions directory:
+# libretto completion fish > ~/.config/fish/completions/libretto.fish"
         }
 
         ShellType::PowerShell => {
-            r#"# Add to your PowerShell profile:
-# Invoke-Expression (& libretto completion powershell | Out-String)"#
+            r"# Add to your PowerShell profile:
+# Invoke-Expression (& libretto completion powershell | Out-String)"
         }
 
         ShellType::Elvish => {
-            r#"# Add to ~/.elvish/rc.elv:
-# eval (libretto completion elvish | slurp)"#
+            r"# Add to ~/.elvish/rc.elv:
+# eval (libretto completion elvish | slurp)"
         }
     }
 }

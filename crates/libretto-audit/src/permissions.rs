@@ -30,11 +30,11 @@ pub type Result<T> = std::result::Result<T, PermissionError>;
 pub enum PermissionMode {
     /// Private (0600) - owner read/write only.
     Private,
-    /// PrivateExecutable (0700) - owner read/write/execute only.
+    /// `PrivateExecutable` (0700) - owner read/write/execute only.
     PrivateExecutable,
     /// Shared (0644) - owner read/write, others read.
     Shared,
-    /// SharedExecutable (0755) - owner read/write/execute, others read/execute.
+    /// `SharedExecutable` (0755) - owner read/write/execute, others read/execute.
     SharedExecutable,
 }
 
@@ -155,7 +155,12 @@ pub async fn check_secure_permissions(path: impl AsRef<Path>) -> Result<bool> {
 pub async fn ensure_secure_dir(path: impl AsRef<Path>) -> Result<()> {
     let path = path.as_ref();
 
-    if !path.exists() {
+    if path.exists() {
+        // Verify permissions
+        if !check_secure_permissions(path).await? {
+            set_secure_dir_permissions(path).await?;
+        }
+    } else {
         #[cfg(unix)]
         {
             use tokio::fs;
@@ -171,11 +176,6 @@ pub async fn ensure_secure_dir(path: impl AsRef<Path>) -> Result<()> {
         #[cfg(not(unix))]
         {
             tokio::fs::create_dir_all(path).await?;
-            set_secure_dir_permissions(path).await?;
-        }
-    } else {
-        // Verify permissions
-        if !check_secure_permissions(path).await? {
             set_secure_dir_permissions(path).await?;
         }
     }

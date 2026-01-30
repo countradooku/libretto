@@ -1,7 +1,7 @@
 //! Platform-specific I/O backend detection and configuration.
 //!
 //! Provides optimal I/O backend selection:
-//! - Linux: io_uring (kernel 5.1+) or epoll
+//! - Linux: `io_uring` (kernel 5.1+) or epoll
 //! - macOS: kqueue
 //! - Windows: IOCP
 
@@ -12,7 +12,7 @@ use crate::{Os, PlatformError, Result};
 /// Available I/O backends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IoBackend {
-    /// Linux io_uring (kernel 5.1+).
+    /// Linux `io_uring` (kernel 5.1+).
     IoUring,
     /// Windows I/O Completion Ports.
     Iocp,
@@ -55,18 +55,15 @@ impl IoBackend {
     fn check_io_uring_support() -> bool {
         use std::fs;
 
-        // Check kernel version
-        if let Ok(version) = fs::read_to_string("/proc/sys/kernel/osrelease") {
-            if let Some((major, minor)) = Self::parse_kernel_version(&version) {
-                // io_uring requires kernel 5.1+
-                // But for good performance, recommend 5.6+
-                if major > 5 || (major == 5 && minor >= 1) {
-                    // Also verify io_uring syscalls are available
-                    return Self::probe_io_uring();
-                }
-            }
-        }
-        false
+        // Check kernel version - io_uring requires kernel 5.1+
+        // But for good performance, recommend 5.6+
+        let version_ok = fs::read_to_string("/proc/sys/kernel/osrelease")
+            .ok()
+            .and_then(|v| Self::parse_kernel_version(&v))
+            .is_some_and(|(major, minor)| major > 5 || (major == 5 && minor >= 1));
+
+        // Also verify io_uring syscalls are available
+        version_ok && Self::probe_io_uring()
     }
 
     #[cfg(target_os = "linux")]
@@ -134,9 +131,7 @@ impl IoBackend {
     pub const fn optimal_buffer_size(self) -> usize {
         match self {
             Self::IoUring => 128 * 1024, // 128KB for io_uring
-            Self::Iocp => 64 * 1024,     // 64KB for IOCP
-            Self::Kqueue => 64 * 1024,   // 64KB for kqueue
-            Self::Epoll => 64 * 1024,    // 64KB for epoll
+            Self::Iocp | Self::Kqueue | Self::Epoll => 64 * 1024, // 64KB
             Self::Poll => 32 * 1024,     // 32KB for poll
         }
     }
@@ -145,11 +140,10 @@ impl IoBackend {
     #[must_use]
     pub const fn optimal_queue_depth(self) -> usize {
         match self {
-            Self::IoUring => 256, // io_uring handles deep queues well
-            Self::Iocp => 64,     // IOCP with reasonable depth
-            Self::Kqueue => 64,   // kqueue with reasonable depth
-            Self::Epoll => 32,    // epoll with moderate depth
-            Self::Poll => 16,     // poll with small depth
+            Self::IoUring => 256,            // io_uring handles deep queues well
+            Self::Iocp | Self::Kqueue => 64, // reasonable depth
+            Self::Epoll => 32,               // epoll with moderate depth
+            Self::Poll => 16,                // poll with small depth
         }
     }
 }
@@ -202,8 +196,7 @@ impl IoConfig {
 
         let max_concurrent = match backend {
             IoBackend::IoUring => cpu_count * 16,
-            IoBackend::Iocp => cpu_count * 8,
-            IoBackend::Kqueue | IoBackend::Epoll => cpu_count * 8,
+            IoBackend::Iocp | IoBackend::Kqueue | IoBackend::Epoll => cpu_count * 8,
             IoBackend::Poll => cpu_count * 4,
         };
 
@@ -312,8 +305,9 @@ impl SyncStrategy {
     pub const fn default_for_backend(backend: IoBackend) -> Self {
         match backend {
             IoBackend::IoUring => Self::Transactional,
-            IoBackend::Iocp | IoBackend::Kqueue | IoBackend::Epoll => Self::OnClose,
-            IoBackend::Poll => Self::OnClose,
+            IoBackend::Iocp | IoBackend::Kqueue | IoBackend::Epoll | IoBackend::Poll => {
+                Self::OnClose
+            }
         }
     }
 }
@@ -321,7 +315,7 @@ impl SyncStrategy {
 /// Async I/O handle abstraction.
 #[cfg(feature = "async-io")]
 pub mod async_io {
-    use super::*;
+    use super::{PlatformError, Result};
     use std::path::Path;
 
     /// Async file operations trait.
@@ -353,13 +347,13 @@ pub mod async_io {
         async fn read_file(path: &Path) -> Result<Vec<u8>> {
             tokio::fs::read(path)
                 .await
-                .map_err(|e| PlatformError::io(path, e))
+                .map_err(|e| PlatformError::io(path, &e))
         }
 
         async fn write_file(path: &Path, contents: &[u8]) -> Result<()> {
             tokio::fs::write(path, contents)
                 .await
-                .map_err(|e| PlatformError::io(path, e))
+                .map_err(|e| PlatformError::io(path, &e))
         }
 
         async fn read_file_streaming(
@@ -371,7 +365,7 @@ pub mod async_io {
 
             let mut file = tokio::fs::File::open(path)
                 .await
-                .map_err(|e| PlatformError::io(path, e))?;
+                .map_err(|e| PlatformError::io(path, &e))?;
 
             let mut buffer = vec![0u8; buffer_size];
             let mut total = 0u64;
@@ -380,7 +374,7 @@ pub mod async_io {
                 let n = file
                     .read(&mut buffer)
                     .await
-                    .map_err(|e| PlatformError::io(path, e))?;
+                    .map_err(|e| PlatformError::io(path, &e))?;
 
                 if n == 0 {
                     break;
@@ -396,20 +390,20 @@ pub mod async_io {
         async fn copy_file(src: &Path, dst: &Path) -> Result<u64> {
             tokio::fs::copy(src, dst)
                 .await
-                .map_err(|e| PlatformError::io(src, e))
+                .map_err(|e| PlatformError::io(src, &e))
         }
     }
 }
 
-/// io_uring specific operations (Linux only).
+/// `io_uring` specific operations (Linux only).
 #[cfg(all(target_os = "linux", feature = "io-uring"))]
 pub mod io_uring_ops {
-    /// io_uring configuration.
+    /// `io_uring` configuration.
     #[derive(Debug, Clone)]
     pub struct IoUringConfig {
         /// Submission queue entries.
         pub sq_entries: u32,
-        /// Completion queue entries (usually 2x sq_entries).
+        /// Completion queue entries (usually 2x `sq_entries`).
         pub cq_entries: u32,
         /// Use SQPOLL for kernel-side submission.
         pub sqpoll: bool,
@@ -440,7 +434,7 @@ pub mod io_uring_ops {
     impl IoUringConfig {
         /// Configuration optimized for high throughput.
         #[must_use]
-        pub fn high_throughput() -> Self {
+        pub const fn high_throughput() -> Self {
             Self {
                 sq_entries: 512,
                 cq_entries: 1024,
@@ -454,7 +448,7 @@ pub mod io_uring_ops {
 
         /// Configuration optimized for low latency.
         #[must_use]
-        pub fn low_latency() -> Self {
+        pub const fn low_latency() -> Self {
             Self {
                 sq_entries: 64,
                 cq_entries: 128,

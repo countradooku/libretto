@@ -1,8 +1,8 @@
 //! Interactive prompt utilities.
 
 use dialoguer::{
-    theme::ColorfulTheme, Confirm as DialoguerConfirm, Input as DialoguerInput,
-    MultiSelect as DialoguerMultiSelect, Select as DialoguerSelect,
+    Confirm as DialoguerConfirm, Input as DialoguerInput, MultiSelect as DialoguerMultiSelect,
+    Select as DialoguerSelect, theme::ColorfulTheme,
 };
 use std::io::{self, IsTerminal};
 
@@ -32,7 +32,7 @@ impl Confirm {
     }
 
     /// Set the default value
-    pub fn default(mut self, value: bool) -> Self {
+    pub const fn default(mut self, value: bool) -> Self {
         self.default = Some(value);
         self
     }
@@ -50,9 +50,7 @@ impl Confirm {
             prompt = prompt.default(default);
         }
 
-        prompt
-            .interact()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        prompt.interact().map_err(io::Error::other)
     }
 }
 
@@ -82,7 +80,7 @@ impl Input {
     }
 
     /// Allow empty input
-    pub fn allow_empty(mut self, allow: bool) -> Self {
+    pub const fn allow_empty(mut self, allow: bool) -> Self {
         self.allow_empty = allow;
         self
     }
@@ -115,9 +113,7 @@ impl Input {
             prompt = prompt.validate_with(move |input: &String| validator(input));
         }
 
-        prompt
-            .interact_text()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        prompt.interact_text().map_err(io::Error::other)
     }
 }
 
@@ -145,7 +141,7 @@ impl<T: std::fmt::Display> Select<T> {
     }
 
     /// Set the default selection index
-    pub fn default(mut self, index: usize) -> Self {
+    pub const fn default(mut self, index: usize) -> Self {
         self.default = Some(index);
         self
     }
@@ -165,9 +161,7 @@ impl<T: std::fmt::Display> Select<T> {
             prompt = prompt.default(default);
         }
 
-        prompt
-            .interact()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        prompt.interact().map_err(io::Error::other)
     }
 
     /// Show the prompt and get the selected item
@@ -232,9 +226,7 @@ impl<T: std::fmt::Display> MultiSelect<T> {
             prompt = prompt.defaults(&self.defaults);
         }
 
-        prompt
-            .interact()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        prompt.interact().map_err(io::Error::other)
     }
 
     /// Show the prompt and get the selected items
@@ -285,8 +277,7 @@ impl Password {
     /// Show the prompt and get the password
     pub fn prompt(self) -> io::Result<String> {
         if !is_interactive() {
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
+            return Err(io::Error::other(
                 "cannot prompt for password in non-interactive mode",
             ));
         }
@@ -298,9 +289,7 @@ impl Password {
             prompt = prompt.with_confirmation(confirmation, "Passwords do not match");
         }
 
-        prompt
-            .interact()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+        prompt.interact().map_err(io::Error::other)
     }
 }
 

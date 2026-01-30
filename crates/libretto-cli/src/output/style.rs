@@ -21,27 +21,27 @@ pub enum OutputMode {
 
 impl OutputMode {
     /// Check if verbose or debug output is enabled
-    pub fn is_verbose(&self) -> bool {
+    pub const fn is_verbose(&self) -> bool {
         matches!(self, Self::Verbose | Self::Debug)
     }
 
     /// Check if debug output is enabled
-    pub fn is_debug(&self) -> bool {
+    pub const fn is_debug(&self) -> bool {
         matches!(self, Self::Debug)
     }
 
     /// Check if quiet mode is enabled
-    pub fn is_quiet(&self) -> bool {
+    pub const fn is_quiet(&self) -> bool {
         matches!(self, Self::Quiet)
     }
 
     /// Check if JSON output is requested
-    pub fn is_json(&self) -> bool {
+    pub const fn is_json(&self) -> bool {
         matches!(self, Self::Json)
     }
 
     /// Check if human-friendly output should be shown
-    pub fn is_human(&self) -> bool {
+    pub const fn is_human(&self) -> bool {
         !self.is_json()
     }
 }
@@ -78,7 +78,7 @@ pub enum Icon {
 
 impl Icon {
     /// Get Unicode representation
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Success => "\u{2714}",   // ✔
             Self::Error => "\u{2718}",     // ✘
@@ -109,7 +109,7 @@ impl Icon {
     }
 
     /// Get ASCII fallback
-    pub fn ascii(&self) -> &'static str {
+    pub const fn ascii(&self) -> &'static str {
         match self {
             Self::Success => "[OK]",
             Self::Error => "[ERR]",
@@ -163,7 +163,7 @@ pub struct Theme {
 
 impl Theme {
     /// Create a new theme
-    pub fn new(colors_enabled: bool, unicode_enabled: bool) -> Self {
+    pub const fn new(colors_enabled: bool, unicode_enabled: bool) -> Self {
         Self {
             colors_enabled,
             unicode_enabled,
@@ -179,7 +179,7 @@ impl Theme {
     }
 
     /// Get an icon
-    pub fn icon(&self, icon: Icon) -> &'static str {
+    pub const fn icon(&self, icon: Icon) -> &'static str {
         if self.unicode_enabled {
             icon.as_str()
         } else {
@@ -266,7 +266,7 @@ pub struct Styled<T> {
 
 impl<T: fmt::Display> Styled<T> {
     /// Create a new styled value
-    pub fn new(value: T, style: owo_colors::Style, colors_enabled: bool) -> Self {
+    pub const fn new(value: T, style: owo_colors::Style, colors_enabled: bool) -> Self {
         Self {
             value,
             style,

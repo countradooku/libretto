@@ -114,8 +114,7 @@ impl ReferenceCache {
         let repo_path = self.cache_dir.join(&url_hash);
         self.clone_bare(url, &repo_path)?;
 
-        self.repositories
-            .insert(url_hash.clone(), repo_path.clone());
+        self.repositories.insert(url_hash, repo_path.clone());
 
         // Update size
         if let Ok(size) = dir_size(&repo_path) {
@@ -249,17 +248,17 @@ impl ReferenceCache {
     pub fn remove(&self, url: &VcsUrl) -> Result<()> {
         let url_hash = hash_url(&url.normalized);
 
-        if let Some((_, path)) = self.repositories.remove(&url_hash) {
-            if path.exists() {
-                // Calculate size before removal
-                if let Ok(size) = dir_size(&path) {
-                    self.current_size
-                        .fetch_sub(size, std::sync::atomic::Ordering::Relaxed);
-                }
-
-                std::fs::remove_dir_all(&path).map_err(|e| VcsError::io(&path, e))?;
-                info!(url = %url, "removed reference repository");
+        if let Some((_, path)) = self.repositories.remove(&url_hash)
+            && path.exists()
+        {
+            // Calculate size before removal
+            if let Ok(size) = dir_size(&path) {
+                self.current_size
+                    .fetch_sub(size, std::sync::atomic::Ordering::Relaxed);
             }
+
+            std::fs::remove_dir_all(&path).map_err(|e| VcsError::io(&path, e))?;
+            info!(url = %url, "removed reference repository");
         }
 
         Ok(())
@@ -267,7 +266,7 @@ impl ReferenceCache {
 
     /// Clear the entire cache.
     pub fn clear(&self) -> Result<()> {
-        for entry in self.repositories.iter() {
+        for entry in &self.repositories {
             let path = entry.value();
             if path.exists() {
                 let _ = std::fs::remove_dir_all(path);
@@ -381,7 +380,8 @@ pub struct AlternatesManager {
 
 impl AlternatesManager {
     /// Create a new alternates manager.
-    pub fn new(repo_path: PathBuf) -> Self {
+    #[must_use]
+    pub const fn new(repo_path: PathBuf) -> Self {
         Self { repo_path }
     }
 

@@ -2,7 +2,7 @@
 //!
 //! Provides unified interface for:
 //! - Unix: bash, zsh, fish, sh
-//! - Windows: cmd.exe, PowerShell
+//! - Windows: cmd.exe, `PowerShell`
 
 use crate::process::{ProcessBuilder, ProcessOutput, StdioConfig};
 use crate::{Os, Platform, PlatformError, Result};
@@ -22,9 +22,9 @@ pub enum ShellType {
     Fish,
     /// Windows Command Prompt.
     Cmd,
-    /// PowerShell (Windows or cross-platform).
+    /// `PowerShell` (Windows or cross-platform).
     PowerShell,
-    /// PowerShell Core (cross-platform).
+    /// `PowerShell` Core (cross-platform).
     Pwsh,
 }
 
@@ -325,11 +325,11 @@ impl Shell {
         Ok(Self { shell_type, path })
     }
 
-    /// Get the default shell.
+    /// Get the system default shell.
     ///
     /// # Errors
     /// Returns error if default shell is not found.
-    pub fn default() -> Result<Self> {
+    pub fn system_default() -> Result<Self> {
         Self::new(Platform::current().default_shell)
     }
 
@@ -357,10 +357,10 @@ impl Shell {
         Self::new(ShellType::Fish)
     }
 
-    /// Get PowerShell.
+    /// Get `PowerShell`.
     ///
     /// # Errors
-    /// Returns error if PowerShell is not found.
+    /// Returns error if `PowerShell` is not found.
     pub fn powershell() -> Result<Self> {
         // Try pwsh first (cross-platform), then powershell.exe (Windows)
         Self::new(ShellType::Pwsh).or_else(|_| Self::new(ShellType::PowerShell))
@@ -590,7 +590,8 @@ mod tests {
     #[test]
     fn shell_type_detection() {
         let shell = ShellType::detect(&Os::current());
-        assert!(shell.is_available() || true); // May not be available in CI
+        // Shell may not be available in CI, so we just verify detection doesn't panic
+        let _ = shell.is_available();
     }
 
     #[test]

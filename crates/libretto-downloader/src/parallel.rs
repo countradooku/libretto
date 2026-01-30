@@ -127,7 +127,7 @@ impl ParallelDownloader {
     pub fn new(config: DownloadConfig, auth: Option<AuthConfig>) -> Result<Self> {
         let throttler = BandwidthThrottler::new(config.bandwidth_limit);
         let client = HttpClient::new(config.clone(), auth)?;
-        let stream_downloader = StreamDownloader::new(client.clone(), throttler.clone());
+        let stream_downloader = StreamDownloader::new(client, throttler);
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent));
         let progress = ProgressTracker::new(config.show_progress);
 
@@ -224,15 +224,15 @@ impl ParallelDownloader {
         let timeout = self.config.per_package_timeout;
 
         // Wrap entire download in a timeout to prevent indefinite hangs
-        match tokio::time::timeout(timeout, self.download_source_with_permit(source)).await {
-            Ok(result) => result,
-            Err(_) => {
-                error!("package download timed out after {:?}", timeout);
-                Err(DownloadError::Timeout(format!(
-                    "package download exceeded wall-clock limit of {:?}",
-                    timeout
-                )))
-            }
+        if let Ok(result) =
+            tokio::time::timeout(timeout, self.download_source_with_permit(source)).await
+        {
+            result
+        } else {
+            error!("package download timed out after {:?}", timeout);
+            Err(DownloadError::Timeout(format!(
+                "package download exceeded wall-clock limit of {timeout:?}"
+            )))
         }
     }
 
@@ -674,12 +674,11 @@ async fn dir_size(path: &Path) -> Result<u64> {
     // Use a 10-second timeout to prevent hanging on large directories
     const DIR_SIZE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
-    match tokio::time::timeout(DIR_SIZE_TIMEOUT, dir_size_inner(path)).await {
-        Ok(result) => result,
-        Err(_) => {
-            warn!(path = %path.display(), "dir_size timed out, returning 0");
-            Ok(0)
-        }
+    if let Ok(result) = tokio::time::timeout(DIR_SIZE_TIMEOUT, dir_size_inner(path)).await {
+        result
+    } else {
+        warn!(path = %path.display(), "dir_size timed out, returning 0");
+        Ok(0)
     }
 }
 

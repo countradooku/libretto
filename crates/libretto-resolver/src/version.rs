@@ -18,7 +18,6 @@
 //! - OR: `^1.0 || ^2.0`
 //! - Stability flags: `>=1.0@dev`, `^1.0@beta`
 
-use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -27,16 +26,16 @@ use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use version_ranges::Ranges;
 
 /// Cache for parsed versions to avoid repeated parsing.
-static VERSION_CACHE: Lazy<RwLock<ahash::AHashMap<Arc<str>, ComposerVersion>>> =
-    Lazy::new(|| RwLock::new(ahash::AHashMap::with_capacity(4096)));
+static VERSION_CACHE: LazyLock<RwLock<ahash::AHashMap<Arc<str>, ComposerVersion>>> =
+    LazyLock::new(|| RwLock::new(ahash::AHashMap::with_capacity(4096)));
 
 /// Cache for parsed constraints.
-static CONSTRAINT_CACHE: Lazy<RwLock<ahash::AHashMap<Arc<str>, ComposerConstraint>>> =
-    Lazy::new(|| RwLock::new(ahash::AHashMap::with_capacity(4096)));
+static CONSTRAINT_CACHE: LazyLock<RwLock<ahash::AHashMap<Arc<str>, ComposerConstraint>>> =
+    LazyLock::new(|| RwLock::new(ahash::AHashMap::with_capacity(4096)));
 
 /// Maximum cache size before eviction.
 const MAX_CACHE_SIZE: usize = 16384;
@@ -275,7 +274,7 @@ impl ComposerVersion {
             .unwrap_or(version_part);
 
         // Regex for parsing version strings
-        static VERSION_REGEX: Lazy<Regex> = Lazy::new(|| {
+        static VERSION_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
             Regex::new(
                 r"(?ix)
                 ^
@@ -296,15 +295,14 @@ impl ComposerVersion {
             .expect("valid regex")
         });
 
-        let caps = match VERSION_REGEX.captures(version_part) {
-            Some(c) => c,
-            None => {
-                if is_dev_suffix {
-                    // Fallback: treat as dev branch (e.g. master-dev -> dev-master)
-                    return Some(Self::dev_branch(version_part));
-                }
-                return None;
+        let caps = if let Some(c) = VERSION_REGEX.captures(version_part) {
+            c
+        } else {
+            if is_dev_suffix {
+                // Fallback: treat as dev branch (e.g. master-dev -> dev-master)
+                return Some(Self::dev_branch(version_part));
             }
+            return None;
         };
 
         let major: u64 = caps.get(1)?.as_str().parse().ok()?;
@@ -320,10 +318,10 @@ impl ComposerVersion {
             stability = Stability::parse(&pre_str).unwrap_or(Stability::Stable);
             pre_release.push(PreReleaseId::String(Arc::from(pre_str)));
 
-            if let Some(pre_num) = caps.get(6) {
-                if let Ok(n) = pre_num.as_str().parse::<u64>() {
-                    pre_release.push(PreReleaseId::Numeric(n));
-                }
+            if let Some(pre_num) = caps.get(6)
+                && let Ok(n) = pre_num.as_str().parse::<u64>()
+            {
+                pre_release.push(PreReleaseId::Numeric(n));
             }
         }
 
@@ -747,13 +745,13 @@ impl ComposerConstraint {
         let mut i = 0;
         while i < parts.len() {
             let part = parts[i];
-            if part == ">" || part == "<" || part == ">=" || part == "<=" || part == "=" {
-                if i + 1 < parts.len() {
-                    let combined = format!("{}{}", part, parts[i + 1]);
-                    merged.push(combined);
-                    i += 2;
-                    continue;
-                }
+            if (part == ">" || part == "<" || part == ">=" || part == "<=" || part == "=")
+                && i + 1 < parts.len()
+            {
+                let combined = format!("{}{}", part, parts[i + 1]);
+                merged.push(combined);
+                i += 2;
+                continue;
             }
             merged.push(part.to_string());
             i += 1;
@@ -941,13 +939,13 @@ impl ComposerConstraint {
 
     /// Get the underlying ranges.
     #[must_use]
-    pub fn ranges(&self) -> &Ranges<ComposerVersion> {
+    pub const fn ranges(&self) -> &Ranges<ComposerVersion> {
         &self.ranges
     }
 
     /// Get the minimum stability.
     #[must_use]
-    pub fn min_stability(&self) -> Stability {
+    pub const fn min_stability(&self) -> Stability {
         self.min_stability
     }
 

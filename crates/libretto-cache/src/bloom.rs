@@ -1,7 +1,7 @@
 //! Ultra-high-performance Bloom Filter implementation
 //!
 //! Features:
-//! - MurmurHash64A with double hashing for k hash functions
+//! - `MurmurHash64A` with double hashing for k hash functions
 //! - Scalable Bloom filters with sub-filter stacking
 //! - Cache-friendly 64-bit aligned bit array
 //! - O(k) add/check operations
@@ -16,7 +16,7 @@ use std::hash::Hash;
 // MurmurHash64A Implementation
 // ============================================================================
 
-/// MurmurHash64A - fast, high-quality 64-bit hash
+/// `MurmurHash64A` - fast, high-quality 64-bit hash
 /// Used by Redis for Bloom filters and hash tables
 #[inline]
 fn murmurhash64a(data: &[u8], seed: u64) -> u64 {
@@ -53,52 +53,52 @@ fn murmurhash64a(data: &[u8], seed: u64) -> u64 {
     let remaining = &data[chunks * 8..];
     match remaining.len() {
         7 => {
-            h ^= (remaining[6] as u64) << 48;
-            h ^= (remaining[5] as u64) << 40;
-            h ^= (remaining[4] as u64) << 32;
-            h ^= (remaining[3] as u64) << 24;
-            h ^= (remaining[2] as u64) << 16;
-            h ^= (remaining[1] as u64) << 8;
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[6]) << 48;
+            h ^= u64::from(remaining[5]) << 40;
+            h ^= u64::from(remaining[4]) << 32;
+            h ^= u64::from(remaining[3]) << 24;
+            h ^= u64::from(remaining[2]) << 16;
+            h ^= u64::from(remaining[1]) << 8;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         6 => {
-            h ^= (remaining[5] as u64) << 40;
-            h ^= (remaining[4] as u64) << 32;
-            h ^= (remaining[3] as u64) << 24;
-            h ^= (remaining[2] as u64) << 16;
-            h ^= (remaining[1] as u64) << 8;
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[5]) << 40;
+            h ^= u64::from(remaining[4]) << 32;
+            h ^= u64::from(remaining[3]) << 24;
+            h ^= u64::from(remaining[2]) << 16;
+            h ^= u64::from(remaining[1]) << 8;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         5 => {
-            h ^= (remaining[4] as u64) << 32;
-            h ^= (remaining[3] as u64) << 24;
-            h ^= (remaining[2] as u64) << 16;
-            h ^= (remaining[1] as u64) << 8;
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[4]) << 32;
+            h ^= u64::from(remaining[3]) << 24;
+            h ^= u64::from(remaining[2]) << 16;
+            h ^= u64::from(remaining[1]) << 8;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         4 => {
-            h ^= (remaining[3] as u64) << 24;
-            h ^= (remaining[2] as u64) << 16;
-            h ^= (remaining[1] as u64) << 8;
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[3]) << 24;
+            h ^= u64::from(remaining[2]) << 16;
+            h ^= u64::from(remaining[1]) << 8;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         3 => {
-            h ^= (remaining[2] as u64) << 16;
-            h ^= (remaining[1] as u64) << 8;
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[2]) << 16;
+            h ^= u64::from(remaining[1]) << 8;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         2 => {
-            h ^= (remaining[1] as u64) << 8;
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[1]) << 8;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         1 => {
-            h ^= remaining[0] as u64;
+            h ^= u64::from(remaining[0]);
             h = h.wrapping_mul(M);
         }
         _ => {}
@@ -198,7 +198,7 @@ impl BloomFilter {
         let num_hashes = BloomFilterConfig::optimal_hash_count(error_rate);
 
         // Round up to next u64 boundary
-        let num_u64s = (num_bits + 63) / 64;
+        let num_u64s = num_bits.div_ceil(64);
         let actual_bits = num_u64s * 64;
 
         Self {
@@ -222,7 +222,7 @@ impl BloomFilter {
 
         for i in 0..self.num_hashes {
             // Double hashing: h(i) = h1 + i * h2
-            let combined = (h1 as u64).wrapping_add((i as u64).wrapping_mul(h2 as u64));
+            let combined = u64::from(h1).wrapping_add(u64::from(i).wrapping_mul(u64::from(h2)));
             let bit_index = (combined % self.num_bits as u64) as usize;
 
             let word_index = bit_index / 64;
@@ -251,13 +251,14 @@ impl BloomFilter {
 
     /// Check if bytes might exist in the filter
     #[inline]
+    #[must_use]
     pub fn exists_bytes(&self, item: &[u8]) -> bool {
         let hash = murmurhash64a(item, 0);
         let h1 = (hash >> 32) as u32;
         let h2 = hash as u32;
 
         for i in 0..self.num_hashes {
-            let combined = (h1 as u64).wrapping_add((i as u64).wrapping_mul(h2 as u64));
+            let combined = u64::from(h1).wrapping_add(u64::from(i).wrapping_mul(u64::from(h2)));
             let bit_index = (combined % self.num_bits as u64) as usize;
 
             let word_index = bit_index / 64;
@@ -281,68 +282,69 @@ impl BloomFilter {
 
     /// Check if the filter should be scaled (capacity exceeded)
     #[inline]
-    pub fn should_scale(&self) -> bool {
+    #[must_use]
+    pub const fn should_scale(&self) -> bool {
         self.items_added >= self.capacity
     }
 
     /// Get the number of items added
     #[inline]
     #[must_use]
-    pub fn count(&self) -> u64 {
+    pub const fn count(&self) -> u64 {
         self.items_added as u64
     }
 
     /// Get the number of items added
     #[inline]
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.items_added
     }
 
     /// Check if filter is empty
     #[inline]
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.items_added == 0
     }
 
     /// Get capacity
     #[inline]
     #[must_use]
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.capacity
     }
 
     /// Get the size in bytes
     #[inline]
     #[must_use]
-    pub fn memory_usage(&self) -> usize {
+    pub const fn memory_usage(&self) -> usize {
         self.bits.len() * 8
     }
 
     /// Get number of bits
     #[inline]
     #[must_use]
-    pub fn num_bits(&self) -> usize {
+    pub const fn num_bits(&self) -> usize {
         self.num_bits
     }
 
     /// Get number of hash functions
     #[inline]
     #[must_use]
-    pub fn num_hashes(&self) -> usize {
+    pub const fn num_hashes(&self) -> usize {
         self.num_hashes as usize
     }
 
     /// Get error rate
     #[inline]
     #[must_use]
-    pub fn error_rate(&self) -> f64 {
+    pub const fn error_rate(&self) -> f64 {
         self.error_rate
     }
 
     /// Clear the bloom filter
-    pub fn clear(&self) {
+    pub const fn clear(&self) {
         // Note: This is a no-op for non-mutable clear
         // For actual clearing, use clear_mut
     }
@@ -400,7 +402,7 @@ impl BloomFilter {
         let capacity = u64::from_le_bytes(data[20..28].try_into().ok()?) as usize;
         let error_rate = f64::from_le_bytes(data[28..36].try_into().ok()?);
 
-        let num_u64s = (num_bits + 63) / 64;
+        let num_u64s = num_bits.div_ceil(64);
         let expected_len = 36 + num_u64s * 8;
         if data.len() < expected_len {
             return None;
@@ -455,8 +457,8 @@ impl ScalableBloomFilter {
     #[must_use]
     pub fn with_capacity(capacity: usize, error_rate: f64) -> Self {
         Self::new(BloomFilterConfig {
-            capacity,
             error_rate,
+            capacity,
             ..Default::default()
         })
     }
@@ -518,28 +520,28 @@ impl ScalableBloomFilter {
     /// Get total items added
     #[inline]
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.total_items
     }
 
     /// Check if empty
     #[inline]
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.total_items == 0
     }
 
     /// Get configured capacity
     #[inline]
     #[must_use]
-    pub fn capacity(&self) -> usize {
+    pub const fn capacity(&self) -> usize {
         self.config.capacity
     }
 
     /// Get number of sub-filters
     #[inline]
     #[must_use]
-    pub fn num_filters(&self) -> usize {
+    pub const fn num_filters(&self) -> usize {
         self.filters.len()
     }
 
@@ -552,7 +554,7 @@ impl ScalableBloomFilter {
     /// Get error rate
     #[inline]
     #[must_use]
-    pub fn error_rate(&self) -> f64 {
+    pub const fn error_rate(&self) -> f64 {
         self.config.error_rate
     }
 

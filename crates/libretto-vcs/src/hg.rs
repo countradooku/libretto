@@ -15,6 +15,7 @@ pub struct HgRepository {
 
 impl HgRepository {
     /// Check if Mercurial is available.
+    #[must_use]
     pub fn is_available() -> bool {
         Command::new("hg")
             .arg("--version")

@@ -107,7 +107,7 @@ impl ExcludePattern {
 
     /// Empty exclude pattern (excludes nothing).
     #[must_use]
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         Self {
             patterns: Vec::new(),
         }
@@ -192,30 +192,27 @@ impl Scanner {
             return None;
         }
 
-        let metadata = match std::fs::metadata(path) {
-            Ok(m) => m,
-            Err(_) => {
-                self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
-                return None;
-            }
+        let metadata = if let Ok(m) = std::fs::metadata(path) {
+            m
+        } else {
+            self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
+            return None;
         };
 
         let mtime = metadata
             .modified()
             .ok()
             .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+            .map_or(0, |d| d.as_secs());
 
         let size = metadata.len();
 
         // Read file and compute hash
-        let content = match std::fs::read(path) {
-            Ok(c) => c,
-            Err(_) => {
-                self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
-                return None;
-            }
+        let content = if let Ok(c) = std::fs::read(path) {
+            c
+        } else {
+            self.stats.parse_errors.fetch_add(1, Ordering::Relaxed);
+            return None;
         };
 
         let content_hash = *blake3::hash(&content).as_bytes();
@@ -273,7 +270,7 @@ impl Scanner {
             .follow_links(true)
             .into_iter()
             .filter_entry(|e| !self.should_skip_entry(e))
-            .filter_map(|e| e.ok())
+            .filter_map(std::result::Result::ok)
             .filter(|e| self.is_php_file(e))
             .map(|e| e.path().to_path_buf())
             .collect()

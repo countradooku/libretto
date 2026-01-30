@@ -70,13 +70,13 @@ impl LockGenerator {
     }
 
     /// Set prefer stable flag.
-    pub fn prefer_stable(&mut self, prefer: bool) -> &mut Self {
+    pub const fn prefer_stable(&mut self, prefer: bool) -> &mut Self {
         self.prefer_stable = prefer;
         self
     }
 
     /// Set prefer lowest flag.
-    pub fn prefer_lowest(&mut self, prefer: bool) -> &mut Self {
+    pub const fn prefer_lowest(&mut self, prefer: bool) -> &mut Self {
         self.prefer_lowest = prefer;
         self
     }
@@ -305,7 +305,7 @@ impl DeterministicSerializer {
 
     /// Write packages array.
     fn write_packages<W: Write>(w: &mut W, name: &str, packages: &[LockedPackage]) -> Result<()> {
-        write!(w, "    \"{}\": ", name).map_err(|e| LockfileError::Serialization(e.to_string()))?;
+        write!(w, "    \"{name}\": ").map_err(|e| LockfileError::Serialization(e.to_string()))?;
 
         if packages.is_empty() {
             write!(w, "[]").map_err(|e| LockfileError::Serialization(e.to_string()))?;
@@ -332,7 +332,7 @@ impl DeterministicSerializer {
         let prefix = " ".repeat(indent);
         let inner = " ".repeat(indent + 4);
 
-        writeln!(w, "{}{{", prefix).map_err(|e| LockfileError::Serialization(e.to_string()))?;
+        writeln!(w, "{prefix}{{").map_err(|e| LockfileError::Serialization(e.to_string()))?;
 
         // Collect all fields including required ones in sorted order
         let mut fields: Vec<(&str, String)> = Vec::new();
@@ -367,10 +367,10 @@ impl DeterministicSerializer {
         }
 
         // autoload
-        if let Some(ref autoload) = pkg.autoload {
-            if !is_autoload_empty(autoload) {
-                fields.push(("autoload", Self::format_autoload(autoload)));
-            }
+        if let Some(ref autoload) = pkg.autoload
+            && !is_autoload_empty(autoload)
+        {
+            fields.push(("autoload", Self::format_autoload(autoload)));
         }
 
         // notification-url
@@ -413,11 +413,11 @@ impl DeterministicSerializer {
 
         for (i, (name, value)) in fields.iter().enumerate() {
             let trailing = if i < fields.len() - 1 { "," } else { "" };
-            writeln!(w, "{}\"{}\": {}{}", inner, name, value, trailing)
+            writeln!(w, "{inner}\"{name}\": {value}{trailing}")
                 .map_err(|e| LockfileError::Serialization(e.to_string()))?;
         }
 
-        write!(w, "{}}}", prefix).map_err(|e| LockfileError::Serialization(e.to_string()))?;
+        write!(w, "{prefix}}}").map_err(|e| LockfileError::Serialization(e.to_string()))?;
         Ok(())
     }
 
@@ -632,7 +632,7 @@ fn escape_json(s: &str) -> String {
 #[derive(Debug)]
 pub struct DeterministicLock<'a>(pub &'a ComposerLock);
 
-impl<'a> Serialize for DeterministicLock<'a> {
+impl Serialize for DeterministicLock<'_> {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
         S: Serializer,

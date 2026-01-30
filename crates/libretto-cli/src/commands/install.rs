@@ -4,9 +4,10 @@
 
 use crate::cas_cache;
 use crate::fetcher::Fetcher;
+use crate::output::format_bytes;
 use crate::output::live::LiveProgress;
 use crate::output::table::Table;
-use crate::output::{error, format_bytes, header, info, success, warning};
+use crate::output::{error, header, info, success, warning};
 use crate::platform::PlatformValidator;
 use crate::scripts::{
     ScriptConfig, run_post_autoload_scripts, run_post_install_scripts, run_pre_autoload_scripts,
@@ -15,9 +16,12 @@ use crate::scripts::{
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use futures::stream::{FuturesUnordered, StreamExt};
+use libretto_audit::Auditor;
+use libretto_core::PackageId;
 use libretto_resolver::Stability;
 use libretto_resolver::turbo::{TurboConfig, TurboResolver};
 use libretto_resolver::{ComposerConstraint, Dependency, PackageName, ResolutionMode};
+use semver::Version;
 use sonic_rs::{JsonContainerTrait, JsonValueTrait, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -61,7 +65,7 @@ pub struct InstallArgs {
     #[arg(short = 'a', long)]
     pub classmap_authoritative: bool,
 
-    /// APCu autoloader caching
+    /// `APCu` autoloader caching
     #[arg(long)]
     pub apcu_autoloader: bool,
 
@@ -88,6 +92,18 @@ pub struct InstallArgs {
     /// Maximum concurrent HTTP requests
     #[arg(long, default_value = "64")]
     pub concurrency: usize,
+
+    /// Run security audit after installation
+    #[arg(long)]
+    pub audit: bool,
+
+    /// Fail installation if security vulnerabilities are found
+    #[arg(long)]
+    pub fail_on_audit: bool,
+
+    /// Verify package checksums and fail on mismatch
+    #[arg(long)]
+    pub verify_checksums: bool,
 }
 
 /// Run the install command.
@@ -123,17 +139,18 @@ pub async fn run(args: InstallArgs) -> Result<()> {
     };
 
     // Run pre-install scripts
-    if !args.no_scripts && !args.dry_run {
-        if let Some(result) = run_pre_install_scripts(&composer, &script_config, false)? {
-            if result.success {
-                debug!(
-                    "Pre-install script: {} commands in {}ms",
-                    result.commands_executed,
-                    result.duration.as_millis()
-                );
-            } else if let Some(ref err) = result.error {
-                warning(&format!("Pre-install script warning: {}", err));
-            }
+    if !args.no_scripts
+        && !args.dry_run
+        && let Some(result) = run_pre_install_scripts(&composer, &script_config, false)?
+    {
+        if result.success {
+            debug!(
+                "Pre-install script: {} commands in {}ms",
+                result.commands_executed,
+                result.duration.as_millis()
+            );
+        } else if let Some(ref err) = result.error {
+            warning(&format!("Pre-install script warning: {err}"));
         }
     }
 
@@ -187,43 +204,128 @@ pub async fn run(args: InstallArgs) -> Result<()> {
     // Generate autoloader
     if !args.dry_run {
         // Pre-autoload-dump scripts
-        if !args.no_scripts {
-            if let Some(result) = run_pre_autoload_scripts(&composer, &script_config)? {
-                if !result.success {
-                    if let Some(ref err) = result.error {
-                        warning(&format!("Pre-autoload script warning: {}", err));
-                    }
-                }
-            }
+        if !args.no_scripts
+            && let Some(result) = run_pre_autoload_scripts(&composer, &script_config)?
+            && !result.success
+            && let Some(ref err) = result.error
+        {
+            warning(&format!("Pre-autoload script warning: {err}"));
         }
 
         generate_autoloader(&vendor_dir, &args)?;
 
         // Post-autoload-dump scripts
-        if !args.no_scripts {
-            if let Some(result) = run_post_autoload_scripts(&composer, &script_config)? {
-                if !result.success {
-                    if let Some(ref err) = result.error {
-                        warning(&format!("Post-autoload script warning: {}", err));
-                    }
+        if !args.no_scripts
+            && let Some(result) = run_post_autoload_scripts(&composer, &script_config)?
+            && !result.success
+            && let Some(ref err) = result.error
+        {
+            warning(&format!("Post-autoload script warning: {err}"));
+        }
+    }
+
+    // Run post-install scripts
+    if !args.no_scripts
+        && !args.dry_run
+        && let Some(result) = run_post_install_scripts(&composer, &script_config, false)?
+    {
+        if result.success {
+            debug!(
+                "Post-install script: {} commands in {}ms",
+                result.commands_executed,
+                result.duration.as_millis()
+            );
+        } else if let Some(ref err) = result.error {
+            warning(&format!("Post-install script warning: {err}"));
+        }
+    }
+
+    // Run security audit if requested
+    if args.audit && !args.dry_run {
+        run_security_audit(&composer_lock_path, &args).await?;
+    }
+
+    Ok(())
+}
+
+/// Run security audit on installed packages.
+async fn run_security_audit(lock_path: &PathBuf, args: &InstallArgs) -> Result<()> {
+    if !lock_path.exists() {
+        return Ok(());
+    }
+
+    info("Running security audit...");
+
+    let lock_content = std::fs::read_to_string(lock_path)?;
+    let lock: Value = sonic_rs::from_str(&lock_content)?;
+
+    let mut packages_to_audit: Vec<(PackageId, Version)> = Vec::new();
+
+    // Collect packages from lock file
+    for key in ["packages", "packages-dev"] {
+        if let Some(pkgs) = lock.get(key).and_then(|v| v.as_array()) {
+            for pkg in pkgs {
+                let name = pkg.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let version_str = pkg
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim_start_matches('v');
+
+                if let Some(id) = PackageId::parse(name)
+                    && let Ok(ver) = Version::parse(version_str)
+                {
+                    packages_to_audit.push((id, ver));
                 }
             }
         }
     }
 
-    // Run post-install scripts
-    if !args.no_scripts && !args.dry_run {
-        if let Some(result) = run_post_install_scripts(&composer, &script_config, false)? {
-            if result.success {
-                debug!(
-                    "Post-install script: {} commands in {}ms",
-                    result.commands_executed,
-                    result.duration.as_millis()
-                );
-            } else if let Some(ref err) = result.error {
-                warning(&format!("Post-install script warning: {}", err));
+    if packages_to_audit.is_empty() {
+        return Ok(());
+    }
+
+    let auditor = Auditor::new().map_err(|e| anyhow::anyhow!("Failed to create auditor: {e}"))?;
+    let report = auditor
+        .audit(&packages_to_audit)
+        .await
+        .map_err(|e| anyhow::anyhow!("Audit failed: {e}"))?;
+
+    if report.vulnerability_count() == 0 {
+        success("No security vulnerabilities found");
+        return Ok(());
+    }
+
+    // Display vulnerabilities
+    warning(&format!(
+        "Found {} vulnerabilities in {} packages",
+        report.vulnerability_count(),
+        report.vulnerable_package_count()
+    ));
+
+    for (severity, vulns) in report.by_severity() {
+        let color = severity.color();
+        let reset = "\x1b[0m";
+
+        for vuln in vulns {
+            println!(
+                "  {color}[{}]{reset} {} ({})",
+                severity, vuln.advisory_id, vuln.package
+            );
+            println!("    {}", vuln.title);
+            if let Some(ref fixed) = vuln.fixed_version {
+                println!("    Fixed in: {fixed}");
             }
         }
+    }
+
+    // Fail if requested and critical/high vulnerabilities found
+    if args.fail_on_audit && report.has_critical() {
+        bail!("Critical security vulnerabilities found. Use --no-fail to continue anyway.");
+    }
+
+    if args.fail_on_audit && !report.passes() {
+        bail!("Security vulnerabilities found. Use --no-fail to continue anyway.");
     }
 
     Ok(())
@@ -250,12 +352,12 @@ async fn install_from_lock(
         }
     }
 
-    if !args.no_dev {
-        if let Some(pkgs) = lock.get("packages-dev").and_then(|v| v.as_array()) {
-            for pkg in pkgs {
-                if let Some(info) = parse_lock_package(pkg, true) {
-                    packages.push(info);
-                }
+    if !args.no_dev
+        && let Some(pkgs) = lock.get("packages-dev").and_then(|v| v.as_array())
+    {
+        for pkg in pkgs {
+            if let Some(info) = parse_lock_package(pkg, true) {
+                packages.push(info);
             }
         }
     }
@@ -339,7 +441,7 @@ async fn resolve_and_install(
 
     // Create fetcher
     let fetcher =
-        Arc::new(Fetcher::new().map_err(|e| anyhow::anyhow!("Failed to create fetcher: {}", e))?);
+        Arc::new(Fetcher::new().map_err(|e| anyhow::anyhow!("Failed to create fetcher: {e}"))?);
 
     // Configure resolver
     let config = TurboConfig {
@@ -348,7 +450,8 @@ async fn resolve_and_install(
         mode: if args.prefer_lowest {
             ResolutionMode::PreferLowest
         } else {
-            ResolutionMode::PreferHighest
+            // Default to PreferStable like Composer does
+            ResolutionMode::PreferStable
         },
         min_stability,
         include_dev: !args.no_dev,
@@ -391,7 +494,17 @@ async fn resolve_and_install(
     let resolution = resolver
         .resolve(&root_deps, &dev_deps)
         .await
-        .map_err(|e| anyhow::anyhow!("Resolution failed: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Resolution failed: {e}"))?;
+
+    // Log fetcher statistics
+    let stats = fetcher.stats();
+    tracing::debug!(
+        requests = stats.requests,
+        bytes = stats.bytes_downloaded,
+        cache_hits = stats.cache_hits,
+        cache_hit_rate = format!("{:.1}%", stats.cache_hit_rate()),
+        "resolution fetch statistics"
+    );
 
     // Convert to package info
     let packages: Vec<PackageInfo> = resolution
@@ -565,7 +678,7 @@ async fn install_packages(
         .context("Failed to create HTTP client")?;
 
     // Separate cached vs need-download
-    let mut to_download: Vec<(String, String, String, PathBuf)> = Vec::new();
+    let mut to_download: Vec<(String, String, String, PathBuf, Option<String>)> = Vec::new();
     let mut from_cache: Vec<(String, PathBuf, PathBuf)> = Vec::new();
     let mut skipped = 0;
 
@@ -575,10 +688,28 @@ async fn install_packages(
         if let Some(ref url_str) = pkg.dist_url {
             let url = convert_github_api_url(url_str);
 
-            if let Some(cache_path) = cas_cache::get_cached_path(&url) {
-                from_cache.push((pkg.name.clone(), cache_path, dest));
+            // Use is_cached for quick check, then get_cached_path for the actual path
+            if cas_cache::is_cached(&url) {
+                if let Some(cache_path) = cas_cache::get_cached_path(&url) {
+                    from_cache.push((pkg.name.clone(), cache_path, dest));
+                } else {
+                    // Cache marker exists but path retrieval failed, download
+                    to_download.push((
+                        pkg.name.clone(),
+                        pkg.version.clone(),
+                        url,
+                        dest,
+                        pkg.dist_shasum.clone(),
+                    ));
+                }
             } else {
-                to_download.push((pkg.name.clone(), pkg.version.clone(), url, dest));
+                to_download.push((
+                    pkg.name.clone(),
+                    pkg.version.clone(),
+                    url,
+                    dest,
+                    pkg.dist_shasum.clone(),
+                ));
             }
         } else {
             skipped += 1;
@@ -591,7 +722,7 @@ async fn install_packages(
 
     if total == 0 {
         if skipped > 0 {
-            warning(&format!("No download URLs for {} packages", skipped));
+            warning(&format!("No download URLs for {skipped} packages"));
         }
         return Ok(());
     }
@@ -611,7 +742,7 @@ async fn install_packages(
             p.set_current(name);
         }
         if let Err(e) = cas_cache::link_from_cache(cache_path, dest) {
-            warning(&format!("Cache link failed for {}: {}", name, e));
+            warning(&format!("Cache link failed for {name}: {e}"));
         }
         if let Some(p) = progress {
             p.inc_completed();
@@ -624,7 +755,7 @@ async fn install_packages(
 
     // Adaptive concurrency based on CPU cores
     let cpu_cores = std::thread::available_parallelism()
-        .map(|n| n.get())
+        .map(std::num::NonZero::get)
         .unwrap_or(4);
     let max_concurrent = if args.dry_run {
         1
@@ -639,10 +770,11 @@ async fn install_packages(
     let mut pending: Vec<_> = to_download.into_iter().collect();
     let mut in_flight = FuturesUnordered::new();
     let mut errors: Vec<String> = Vec::new();
+    let verify_checksums = args.verify_checksums;
 
     while !pending.is_empty() || !in_flight.is_empty() {
         while in_flight.len() < max_concurrent && !pending.is_empty() {
-            let (name, version, url, dest) = pending.pop().unwrap();
+            let (name, version, url, dest, shasum) = pending.pop().unwrap();
             let client = client.clone();
             let total_bytes = Arc::clone(&total_bytes);
 
@@ -652,8 +784,17 @@ async fn install_packages(
             }
 
             in_flight.push(async move {
-                let result =
-                    download_and_extract(&client, &name, &version, &url, &dest, &total_bytes).await;
+                let result = download_and_extract(
+                    &client,
+                    &name,
+                    &version,
+                    &url,
+                    &dest,
+                    &total_bytes,
+                    shasum.as_deref(),
+                    verify_checksums,
+                )
+                .await;
                 (name, url, result)
             });
         }
@@ -670,7 +811,7 @@ async fn install_packages(
                 }
                 Err(e) => {
                     failed_count.fetch_add(1, Ordering::Relaxed);
-                    errors.push(format!("{}: {}", name, e));
+                    errors.push(format!("{name}: {e}"));
                 }
             }
         }
@@ -682,15 +823,40 @@ async fn install_packages(
     let bytes = total_bytes.load(Ordering::Relaxed);
 
     for err in &errors {
-        warning(&format!("Failed: {}", err));
+        warning(&format!("Failed: {err}"));
     }
 
     if failed > 0 {
-        bail!(
-            "Failed to install {} of {} packages. See warnings above.",
-            failed,
-            total
+        bail!("Failed to install {failed} of {total} packages. See warnings above.");
+    }
+
+    // Print installation summary
+    if installed > 0 {
+        let speed = if elapsed.as_secs() > 0 {
+            format!(" ({}/s)", format_bytes(bytes / elapsed.as_secs().max(1)))
+        } else {
+            String::new()
+        };
+
+        tracing::info!(
+            installed = installed,
+            cached = cached_count,
+            downloaded = download_count,
+            bytes = bytes,
+            elapsed_ms = elapsed.as_millis(),
+            "installation complete"
         );
+
+        if !args.no_progress {
+            println!(
+                "  Installed {} packages in {:.2}s ({} downloaded{}, {} from cache)",
+                installed,
+                elapsed.as_secs_f64(),
+                format_bytes(bytes),
+                speed,
+                cached_count
+            );
+        }
     }
 
     Ok(())
@@ -703,12 +869,14 @@ async fn download_and_extract(
     url: &str,
     dest: &std::path::Path,
     total_bytes: &AtomicU64,
+    expected_shasum: Option<&str>,
+    verify_checksums: bool,
 ) -> Result<PathBuf> {
     let response = client
         .get(url)
         .send()
         .await
-        .with_context(|| format!("Failed to fetch {}", name))?;
+        .with_context(|| format!("Failed to fetch {name}"))?;
 
     if !response.status().is_success() {
         anyhow::bail!("HTTP {}", response.status());
@@ -717,9 +885,20 @@ async fn download_and_extract(
     let bytes = response
         .bytes()
         .await
-        .with_context(|| format!("Failed to read response for {}", name))?;
+        .with_context(|| format!("Failed to read response for {name}"))?;
 
     total_bytes.fetch_add(bytes.len() as u64, Ordering::Relaxed);
+
+    // Verify checksum if provided and verification is enabled
+    if verify_checksums
+        && let Some(expected) = expected_shasum
+        && !expected.is_empty()
+    {
+        let actual = compute_sha1(&bytes);
+        if !constant_time_eq(&actual, expected) {
+            anyhow::bail!("Checksum mismatch: expected {expected}, got {actual}");
+        }
+    }
 
     // Extract in blocking task to not block async runtime
     let dest = dest.to_path_buf();
@@ -737,13 +916,33 @@ async fn download_and_extract(
             file.write_all(&bytes)?;
         }
 
-        extract_zip(&temp_path, &dest).with_context(|| format!("Failed to extract {}", name))?;
+        extract_zip(&temp_path, &dest).with_context(|| format!("Failed to extract {name}"))?;
         let _ = std::fs::remove_file(&temp_path);
 
         Ok(dest)
     })
     .await
     .context("Extraction task failed")?
+}
+
+/// Compute SHA-1 hash of bytes and return as hex string.
+fn compute_sha1(data: &[u8]) -> String {
+    use sha1::{Digest, Sha1};
+    let mut hasher = Sha1::new();
+    hasher.update(data);
+    hex::encode(hasher.finalize())
+}
+
+/// Constant-time string comparison to prevent timing attacks.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut result = 0u8;
+    for (x, y) in a.bytes().zip(b.bytes()) {
+        result |= x ^ y;
+    }
+    result == 0
 }
 
 fn extract_zip(zip_path: &std::path::Path, dest: &std::path::Path) -> Result<()> {
@@ -757,21 +956,21 @@ fn extract_zip(zip_path: &std::path::Path, dest: &std::path::Path) -> Result<()>
     for i in 0..archive.len() {
         let entry = archive.by_index(i)?;
         let path = entry.name();
-        if let Some(first_component) = path.split('/').next() {
-            if !first_component.is_empty() {
-                match &common_prefix {
-                    None => common_prefix = Some(format!("{}/", first_component)),
-                    Some(p) if !path.starts_with(p) => {
-                        common_prefix = None;
-                        break;
-                    }
-                    _ => {}
+        if let Some(first_component) = path.split('/').next()
+            && !first_component.is_empty()
+        {
+            match &common_prefix {
+                None => common_prefix = Some(format!("{first_component}/")),
+                Some(p) if !path.starts_with(p) => {
+                    common_prefix = None;
+                    break;
                 }
+                _ => {}
             }
         }
     }
 
-    let prefix_len = common_prefix.as_ref().map(|p| p.len()).unwrap_or(0);
+    let prefix_len = common_prefix.as_ref().map_or(0, std::string::String::len);
 
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
@@ -818,68 +1017,112 @@ fn generate_lock_file(
     resolution: &libretto_resolver::Resolution,
     composer: &Value,
 ) -> Result<()> {
-    let mut packages: Vec<Value> = Vec::new();
-    let mut packages_dev: Vec<Value> = Vec::new();
-
-    for pkg in &resolution.packages {
-        let mut entry = sonic_rs::json!({
-            "name": pkg.name.as_str(),
-            "version": pkg.version.to_string()
-        });
-
-        if let Some(ref url) = pkg.dist_url {
-            entry["dist"] = sonic_rs::json!({
-                "type": pkg.dist_type.as_deref().unwrap_or("zip"),
-                "url": url,
-                "shasum": pkg.dist_shasum.as_deref().unwrap_or("")
-            });
-        }
-
-        if let Some(ref url) = pkg.source_url {
-            entry["source"] = sonic_rs::json!({
-                "type": pkg.source_type.as_deref().unwrap_or("git"),
-                "url": url,
-                "reference": pkg.source_reference.as_deref().unwrap_or("")
-            });
-        }
-
-        if pkg.is_dev {
-            packages_dev.push(entry);
-        } else {
-            packages.push(entry);
-        }
-    }
-
-    let content_hash =
-        libretto_core::ContentHash::from_bytes(sonic_rs::to_string(composer)?.as_bytes());
-
-    let lock = sonic_rs::json!({
-        "_readme": [
-            "This file locks the dependencies of your project to a known state",
-            "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
-            "",
-            "Generated by Libretto - https://github.com/libretto-pm/libretto"
-        ],
-        "content-hash": content_hash.to_hex(),
-        "packages": packages,
-        "packages-dev": packages_dev,
-        "aliases": [],
-        "minimum-stability": "stable",
-        "stability-flags": {},
-        "prefer-stable": true,
-        "prefer-lowest": false,
-        "platform": {},
-        "platform-dev": {}
-    });
-
-    let output = sonic_rs::to_string_pretty(&lock)?;
-    std::fs::write(lock_path, format!("{output}\n"))?;
-
-    Ok(())
+    super::lock_generator::generate_lock_file(lock_path, resolution, composer)
 }
 
 fn generate_autoloader(vendor_dir: &PathBuf, args: &InstallArgs) -> Result<()> {
-    use libretto_autoloader::{AutoloaderGenerator, OptimizationLevel};
+    use libretto_autoloader::{AutoloadConfig, AutoloaderGenerator, OptimizationLevel};
+    use serde::Deserialize;
+    use std::collections::HashMap;
+
+    #[derive(Debug, Deserialize)]
+    struct ComposerJson {
+        #[serde(default)]
+        autoload: AutoloadSection,
+        #[serde(default, rename = "autoload-dev")]
+        autoload_dev: AutoloadSection,
+    }
+
+    #[derive(Debug, Default, Deserialize)]
+    struct AutoloadSection {
+        #[serde(default, rename = "psr-4")]
+        psr4: HashMap<String, Psr4Value>,
+        #[serde(default, rename = "psr-0")]
+        psr0: HashMap<String, Psr4Value>,
+        #[serde(default)]
+        classmap: Vec<String>,
+        #[serde(default)]
+        files: Vec<String>,
+        #[serde(default, rename = "exclude-from-classmap")]
+        exclude: Vec<String>,
+    }
+
+    #[derive(Debug, Deserialize)]
+    #[serde(untagged)]
+    enum Psr4Value {
+        Single(String),
+        Multiple(Vec<String>),
+    }
+
+    impl Psr4Value {
+        fn to_vec(&self) -> Vec<String> {
+            match self {
+                Self::Single(s) => vec![s.clone()],
+                Self::Multiple(v) => v.clone(),
+            }
+        }
+    }
+
+    fn load_autoload_config(path: &std::path::Path) -> Option<AutoloadConfig> {
+        let content = std::fs::read_to_string(path).ok()?;
+        let composer: ComposerJson = sonic_rs::from_str(&content).ok()?;
+
+        let mut config = AutoloadConfig::default();
+
+        for (namespace, paths) in composer.autoload.psr4 {
+            config.psr4.mappings.insert(namespace, paths.to_vec());
+        }
+        for (namespace, paths) in composer.autoload.psr0 {
+            config.psr0.mappings.insert(namespace, paths.to_vec());
+        }
+        config.classmap.paths = composer.autoload.classmap;
+        config.files.files = composer.autoload.files;
+        config.exclude.patterns = composer.autoload.exclude;
+
+        Some(config)
+    }
+
+    fn load_autoload_config_with_dev(path: &std::path::Path) -> Option<AutoloadConfig> {
+        let content = std::fs::read_to_string(path).ok()?;
+        let composer: ComposerJson = sonic_rs::from_str(&content).ok()?;
+
+        let mut config = AutoloadConfig::default();
+
+        for (namespace, paths) in composer.autoload.psr4 {
+            config.psr4.mappings.insert(namespace, paths.to_vec());
+        }
+        for (namespace, paths) in composer.autoload.psr0 {
+            config.psr0.mappings.insert(namespace, paths.to_vec());
+        }
+        config.classmap.paths = composer.autoload.classmap;
+        config.files.files = composer.autoload.files;
+        config.exclude.patterns = composer.autoload.exclude;
+
+        for (namespace, paths) in composer.autoload_dev.psr4 {
+            config
+                .psr4
+                .mappings
+                .entry(namespace)
+                .or_default()
+                .extend(paths.to_vec());
+        }
+        for (namespace, paths) in composer.autoload_dev.psr0 {
+            config
+                .psr0
+                .mappings
+                .entry(namespace)
+                .or_default()
+                .extend(paths.to_vec());
+        }
+        config.classmap.paths.extend(composer.autoload_dev.classmap);
+        config.files.files.extend(composer.autoload_dev.files);
+        config
+            .exclude
+            .patterns
+            .extend(composer.autoload_dev.exclude);
+
+        Some(config)
+    }
 
     let level = if args.classmap_authoritative {
         OptimizationLevel::Authoritative
@@ -889,89 +1132,49 @@ fn generate_autoloader(vendor_dir: &PathBuf, args: &InstallArgs) -> Result<()> {
         OptimizationLevel::None
     };
 
-    let _generator = AutoloaderGenerator::with_optimization(vendor_dir.clone(), level);
+    let mut generator = AutoloaderGenerator::with_optimization(vendor_dir.clone(), level);
 
-    let autoload_path = vendor_dir.join("autoload.php");
-    let autoload_content = r#"<?php
+    // Scan vendor directory for installed packages
+    if let Ok(entries) = std::fs::read_dir(vendor_dir) {
+        for entry in entries.filter_map(Result::ok) {
+            let vendor_path = entry.path();
+            if vendor_path.is_dir() {
+                if vendor_path.file_name().is_some_and(|n| n == "composer") {
+                    continue;
+                }
 
-// Libretto autoloader
-// Generated by libretto - https://github.com/libretto-pm/libretto
-
-require_once __DIR__ . '/composer/autoload_real.php';
-
-return ComposerAutoloaderInit::getLoader();
-"#;
-
-    std::fs::write(&autoload_path, autoload_content)?;
-
-    let composer_dir = vendor_dir.join("composer");
-    std::fs::create_dir_all(&composer_dir)?;
-
-    let autoload_real = r#"<?php
-
-class ComposerAutoloaderInit
-{
-    private static $loader;
-
-    public static function getLoader()
-    {
-        if (null !== self::$loader) {
-            return self::$loader;
-        }
-
-        require __DIR__ . '/ClassLoader.php';
-        spl_autoload_register(array('ComposerAutoloaderInit', 'autoload'), true, true);
-        self::$loader = new \Composer\Autoload\ClassLoader();
-
-        $map = require __DIR__ . '/autoload_namespaces.php';
-        foreach ($map as $namespace => $path) {
-            self::$loader->set($namespace, $path);
-        }
-
-        $map = require __DIR__ . '/autoload_psr4.php';
-        foreach ($map as $namespace => $path) {
-            self::$loader->setPsr4($namespace, $path);
-        }
-
-        $classMap = require __DIR__ . '/autoload_classmap.php';
-        if ($classMap) {
-            self::$loader->addClassMap($classMap);
-        }
-
-        self::$loader->register(true);
-
-        return self::$loader;
-    }
-
-    public static function autoload($class)
-    {
-        $file = __DIR__ . '/../' . str_replace('\\', '/', $class) . '.php';
-        if (file_exists($file)) {
-            require $file;
+                if let Ok(package_entries) = std::fs::read_dir(&vendor_path) {
+                    for package_entry in package_entries.filter_map(Result::ok) {
+                        let package_path = package_entry.path();
+                        if package_path.is_dir() {
+                            let composer_json_path = package_path.join("composer.json");
+                            if composer_json_path.exists()
+                                && let Some(config) = load_autoload_config(&composer_json_path)
+                            {
+                                generator.add_package(&package_path, &config);
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
-}
-"#;
 
-    std::fs::write(composer_dir.join("autoload_real.php"), autoload_real)?;
-    std::fs::write(
-        composer_dir.join("autoload_namespaces.php"),
-        "<?php\n\nreturn array();\n",
-    )?;
-    std::fs::write(
-        composer_dir.join("autoload_psr4.php"),
-        "<?php\n\nreturn array();\n",
-    )?;
-    std::fs::write(
-        composer_dir.join("autoload_classmap.php"),
-        "<?php\n\nreturn array();\n",
-    )?;
+    // Load root project's autoload config (including dev if not --no-dev)
+    let root_composer_json = std::path::PathBuf::from("composer.json");
+    if root_composer_json.exists() {
+        let config = if args.no_dev {
+            load_autoload_config(&root_composer_json)
+        } else {
+            load_autoload_config_with_dev(&root_composer_json)
+        };
+        if let Some(config) = config {
+            let project_root = std::path::PathBuf::from(".");
+            generator.add_package(&project_root, &config);
+        }
+    }
 
-    let classloader = include_str!("../../resources/ClassLoader.php.template");
-    std::fs::write(
-        composer_dir.join("ClassLoader.php"),
-        classloader.replace("{{VERSION}}", env!("CARGO_PKG_VERSION")),
-    )?;
+    generator.generate()?;
 
     Ok(())
 }
@@ -997,10 +1200,7 @@ fn convert_github_api_url(url: &str) -> String {
             "legacy.zip"
         };
 
-        format!(
-            "https://codeload.github.com/{}/{}/{}/{}",
-            owner, repo, ext, reference
-        )
+        format!("https://codeload.github.com/{owner}/{repo}/{ext}/{reference}")
     } else {
         url.to_string()
     }

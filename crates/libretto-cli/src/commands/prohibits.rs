@@ -76,8 +76,8 @@ pub async fn run(args: ProhibitsArgs) -> Result<()> {
             for (dep_name, constraint) in conflict {
                 let constraint_str = constraint.as_str().unwrap_or("*");
                 constraints.entry(dep_name.to_string()).or_default().push((
-                    format!("{} (conflict)", root_name),
-                    format!("conflicts with {}", constraint_str),
+                    format!("{root_name} (conflict)"),
+                    format!("conflicts with {constraint_str}"),
                     false,
                 ));
             }
@@ -111,8 +111,8 @@ pub async fn run(args: ProhibitsArgs) -> Result<()> {
                         for (dep_name, constraint) in conflict {
                             let constraint_str = constraint.as_str().unwrap_or("*");
                             constraints.entry(dep_name.to_string()).or_default().push((
-                                format!("{} (conflict)", name),
-                                format!("conflicts with {}", constraint_str),
+                                format!("{name} (conflict)"),
+                                format!("conflicts with {constraint_str}"),
                                 is_dev,
                             ));
                         }
@@ -122,7 +122,7 @@ pub async fn run(args: ProhibitsArgs) -> Result<()> {
                     if let Some(replace) = pkg.get("replace").and_then(|v| v.as_object()) {
                         for (dep_name, _) in replace {
                             constraints.entry(dep_name.to_string()).or_default().push((
-                                format!("{} (replace)", name),
+                                format!("{name} (replace)"),
                                 "replaced by this package".to_string(),
                                 is_dev,
                             ));
@@ -137,7 +137,7 @@ pub async fn run(args: ProhibitsArgs) -> Result<()> {
     let target = args.package.to_lowercase();
     let target_constraints = constraints.get(&target);
 
-    if target_constraints.is_none() || target_constraints.map(|c| c.is_empty()).unwrap_or(true) {
+    if target_constraints.is_none() || target_constraints.is_none_or(std::vec::Vec::is_empty) {
         info(&format!(
             "No constraints found for '{}' - it could be installed freely",
             args.package
@@ -233,7 +233,7 @@ fn print_tree(package: &str, conflicts: &[(&str, &str, bool, bool)], colors: boo
     if colors {
         println!("{}", package.cyan().bold());
     } else {
-        println!("{}", package);
+        println!("{package}");
     }
 
     for (i, (source, constraint, is_dev, is_conflict)) in conflicts.iter().enumerate() {
@@ -244,12 +244,10 @@ fn print_tree(package: &str, conflicts: &[(&str, &str, bool, bool)], colors: boo
             } else {
                 "\u{251C}\u{2500}\u{2500}"
             }
+        } else if is_last {
+            "`--"
         } else {
-            if is_last {
-                "`--"
-            } else {
-                "|--"
-            }
+            "|--"
         };
 
         let dev_marker = if *is_dev { " (dev)" } else { "" };
@@ -274,10 +272,7 @@ fn print_tree(package: &str, conflicts: &[(&str, &str, bool, bool)], colors: boo
                 }
             );
         } else {
-            println!(
-                " {} {} {} {}{}",
-                prefix, source, constraint, dev_marker, block_marker
-            );
+            println!(" {prefix} {source} {constraint} {dev_marker}{block_marker}");
         }
     }
 }

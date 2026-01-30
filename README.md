@@ -130,6 +130,71 @@ crates/
 └── libretto-lockfile     # Atomic lockfile management
 ```
 
+## Composer Script Compatibility
+
+Libretto provides **full compatibility** with Composer lifecycle scripts. You don't need to change anything in your projects - scripts work exactly as they do with Composer.
+
+### How It Works
+
+| Script Type | Handling |
+|-------------|----------|
+| Shell commands | Executed directly (`echo`, `php artisan`, etc.) |
+| `@php` directives | Executed via PHP binary |
+| `@composer` directives | Executed via Libretto |
+| `@putenv` directives | Sets environment variables |
+| PHP class callbacks | Full Composer Event API support |
+
+### Full Composer Event API
+
+Composer scripts can reference PHP static methods like `Illuminate\Foundation\ComposerScripts::postAutoloadDump`. These require a `Composer\Script\Event` object with access to:
+
+- `$event->getComposer()` - Composer instance
+- `$event->getIO()` - Console I/O interface
+- `$event->isDevMode()` - Development mode flag
+- `$event->getComposer()->getConfig()->get('vendor-dir')` - Configuration values
+
+**Libretto provides complete compatibility through two mechanisms:**
+
+1. **Real Composer Support**: If your project has `composer/composer` as a dependency, Libretto uses the real Composer classes
+2. **Built-in Stubs**: If not, Libretto loads comprehensive stubs that implement the full Composer Event API
+
+This means **any PHP callback that works with Composer will work with Libretto** - no modifications needed.
+
+### Performance Optimization
+
+For maximum speed, well-known callbacks are handled directly in Rust:
+
+| Callback | Optimization |
+|----------|-------------|
+| `Illuminate\Foundation\ComposerScripts::postAutoloadDump` | Cache files cleared directly in Rust |
+| `Illuminate\Foundation\ComposerScripts::postInstall` | Handled natively |
+| `Illuminate\Foundation\ComposerScripts::postUpdate` | Handled natively |
+| `Composer\Config::disableProcessTimeout` | No-op (Libretto has no timeout) |
+
+### Environment Variables
+
+Scripts can detect Libretto via these environment variables:
+
+```bash
+LIBRETTO=1              # Always set when running under Libretto
+COMPOSER_DEV_MODE=1     # "1" for dev, "0" for production
+COMPOSER_VENDOR_DIR=/path/to/vendor
+```
+
+### Supported Frameworks
+
+| Framework | Status | Notes |
+|-----------|--------|-------|
+| Laravel | Full Support | All scripts work, optimized handling |
+| Symfony | Full Support | Full Flex compatibility |
+| Drupal | Full Support | Standard Composer scripts |
+| Any Other | Full Support | Any standard Composer scripts work |
+
+### Limitations
+
+- **Composer Plugins**: Deep plugin integration (plugins that modify Composer's internal behavior) is not supported. However, script callbacks from plugins work fine.
+- **Interactive Prompts**: Scripts that require complex interactive input may have limited functionality in non-TTY environments.
+
 ## Platform Support
 
 | Platform | Architecture | Status |

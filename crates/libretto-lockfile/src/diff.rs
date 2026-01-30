@@ -54,7 +54,7 @@ pub struct PackageChange {
 impl PackageChange {
     /// Create an added package change.
     #[must_use]
-    pub fn added(name: String, version: String, is_dev: bool) -> Self {
+    pub const fn added(name: String, version: String, is_dev: bool) -> Self {
         Self {
             name,
             change_type: ChangeType::Added,
@@ -67,7 +67,7 @@ impl PackageChange {
 
     /// Create a removed package change.
     #[must_use]
-    pub fn removed(name: String, version: String, is_dev: bool) -> Self {
+    pub const fn removed(name: String, version: String, is_dev: bool) -> Self {
         Self {
             name,
             change_type: ChangeType::Removed,
@@ -213,7 +213,7 @@ pub struct LockDiff {
 impl LockDiff {
     /// Check if there are any changes.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.packages.is_empty()
             && !self.content_hash_changed
             && self.platform_changes.is_empty()
@@ -222,7 +222,7 @@ impl LockDiff {
 
     /// Count total changes.
     #[must_use]
-    pub fn change_count(&self) -> usize {
+    pub const fn change_count(&self) -> usize {
         self.packages.len()
     }
 
@@ -281,19 +281,19 @@ impl LockDiff {
             .count();
 
         if added > 0 {
-            parts.push(format!("{} added", added));
+            parts.push(format!("{added} added"));
         }
         if removed > 0 {
-            parts.push(format!("{} removed", removed));
+            parts.push(format!("{removed} removed"));
         }
         if upgraded > 0 {
-            parts.push(format!("{} upgraded", upgraded));
+            parts.push(format!("{upgraded} upgraded"));
         }
         if downgraded > 0 {
-            parts.push(format!("{} downgraded", downgraded));
+            parts.push(format!("{downgraded} downgraded"));
         }
         if modified > 0 {
-            parts.push(format!("{} modified", modified));
+            parts.push(format!("{modified} modified"));
         }
 
         parts.join(", ")
@@ -312,23 +312,23 @@ impl fmt::Display for LockDiff {
         if self.content_hash_changed {
             writeln!(f, "Content hash changed:")?;
             if let Some(ref old) = self.old_content_hash {
-                writeln!(f, "  - {}", old)?;
+                writeln!(f, "  - {old}")?;
             }
             if let Some(ref new) = self.new_content_hash {
-                writeln!(f, "  + {}", new)?;
+                writeln!(f, "  + {new}")?;
             }
             writeln!(f)?;
         }
 
         if let Some((ref old, ref new)) = self.stability_changed {
-            writeln!(f, "Minimum stability: {} -> {}", old, new)?;
+            writeln!(f, "Minimum stability: {old} -> {new}")?;
             writeln!(f)?;
         }
 
         if !self.platform_changes.is_empty() {
             writeln!(f, "Platform changes:")?;
             for change in &self.platform_changes {
-                writeln!(f, "{}", change)?;
+                writeln!(f, "{change}")?;
             }
             writeln!(f)?;
         }
@@ -363,7 +363,7 @@ impl fmt::Display for LockDiff {
         if !added.is_empty() {
             writeln!(f, "Added ({}):", added.len())?;
             for pkg in added {
-                writeln!(f, "{}", pkg)?;
+                writeln!(f, "{pkg}")?;
             }
             writeln!(f)?;
         }
@@ -371,7 +371,7 @@ impl fmt::Display for LockDiff {
         if !removed.is_empty() {
             writeln!(f, "Removed ({}):", removed.len())?;
             for pkg in removed {
-                writeln!(f, "{}", pkg)?;
+                writeln!(f, "{pkg}")?;
             }
             writeln!(f)?;
         }
@@ -379,7 +379,7 @@ impl fmt::Display for LockDiff {
         if !upgraded.is_empty() {
             writeln!(f, "Upgraded ({}):", upgraded.len())?;
             for pkg in upgraded {
-                writeln!(f, "{}", pkg)?;
+                writeln!(f, "{pkg}")?;
             }
             writeln!(f)?;
         }
@@ -387,7 +387,7 @@ impl fmt::Display for LockDiff {
         if !downgraded.is_empty() {
             writeln!(f, "Downgraded ({}):", downgraded.len())?;
             for pkg in downgraded {
-                writeln!(f, "{}", pkg)?;
+                writeln!(f, "{pkg}")?;
             }
             writeln!(f)?;
         }
@@ -395,9 +395,9 @@ impl fmt::Display for LockDiff {
         if !modified.is_empty() {
             writeln!(f, "Modified ({}):", modified.len())?;
             for pkg in modified {
-                writeln!(f, "{}", pkg)?;
+                writeln!(f, "{pkg}")?;
                 for field_change in &pkg.field_changes {
-                    writeln!(f, "{}", field_change)?;
+                    writeln!(f, "{field_change}")?;
                 }
             }
             writeln!(f)?;
@@ -468,26 +468,26 @@ fn compute_package_diff(
             match old_map.get(new_pkg.name.as_str()) {
                 Some(old_pkg) => {
                     // Package exists in both - check for changes
-                    if old_pkg.version != new_pkg.version {
-                        Some(PackageChange::version_change(
-                            new_pkg.name.clone(),
-                            old_pkg.version.clone(),
-                            new_pkg.version.clone(),
-                            is_dev,
-                        ))
-                    } else {
+                    if old_pkg.version == new_pkg.version {
                         // Same version - check for metadata changes
                         let field_changes = compute_package_metadata_diff(old_pkg, new_pkg);
-                        if !field_changes.is_empty() {
+                        if field_changes.is_empty() {
+                            None
+                        } else {
                             Some(PackageChange::modified(
                                 new_pkg.name.clone(),
                                 new_pkg.version.clone(),
                                 is_dev,
                                 field_changes,
                             ))
-                        } else {
-                            None
                         }
+                    } else {
+                        Some(PackageChange::version_change(
+                            new_pkg.name.clone(),
+                            old_pkg.version.clone(),
+                            new_pkg.version.clone(),
+                            is_dev,
+                        ))
                     }
                 }
                 None => {
@@ -506,14 +506,14 @@ fn compute_package_diff(
     let removed: Vec<PackageChange> = old_packages
         .par_iter()
         .filter_map(|old_pkg| {
-            if !new_map.contains_key(old_pkg.name.as_str()) {
+            if new_map.contains_key(old_pkg.name.as_str()) {
+                None
+            } else {
                 Some(PackageChange::removed(
                     old_pkg.name.clone(),
                     old_pkg.version.clone(),
                     is_dev,
                 ))
-            } else {
-                None
             }
         })
         .collect();
@@ -571,7 +571,7 @@ fn compute_package_metadata_diff(old: &LockedPackage, new: &LockedPackage) -> Ve
     changes
 }
 
-/// Compute diff between two BTrees.
+/// Compute diff between two `BTrees`.
 fn compute_btree_diff(
     old: &std::collections::BTreeMap<String, String>,
     new: &std::collections::BTreeMap<String, String>,
@@ -584,14 +584,14 @@ fn compute_btree_diff(
         match old.get(key) {
             Some(old_value) if old_value != new_value => {
                 changes.push(FieldChange {
-                    field: format!("{}.{}", prefix, key),
+                    field: format!("{prefix}.{key}"),
                     old_value: Some(old_value.clone()),
                     new_value: Some(new_value.clone()),
                 });
             }
             None => {
                 changes.push(FieldChange {
-                    field: format!("{}.{}", prefix, key),
+                    field: format!("{prefix}.{key}"),
                     old_value: None,
                     new_value: Some(new_value.clone()),
                 });
@@ -604,7 +604,7 @@ fn compute_btree_diff(
     for (key, old_value) in old {
         if !new.contains_key(key) {
             changes.push(FieldChange {
-                field: format!("{}.{}", prefix, key),
+                field: format!("{prefix}.{key}"),
                 old_value: Some(old_value.clone()),
                 new_value: None,
             });
@@ -631,6 +631,7 @@ fn compare_versions(old: &str, new: &str) -> std::cmp::Ordering {
 /// SIMD-accelerated string equality check for package names.
 #[inline]
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[must_use]
 pub fn fast_str_eq(a: &str, b: &str) -> bool {
     if a.len() != b.len() {
         return false;
@@ -659,8 +660,8 @@ fn simd_memeq(a: &[u8], b: &[u8]) -> bool {
     unsafe {
         for i in 0..chunks {
             let offset = i * 32;
-            let va = _mm256_loadu_si256(a.as_ptr().add(offset) as *const __m256i);
-            let vb = _mm256_loadu_si256(b.as_ptr().add(offset) as *const __m256i);
+            let va = _mm256_loadu_si256(a.as_ptr().add(offset).cast::<__m256i>());
+            let vb = _mm256_loadu_si256(b.as_ptr().add(offset).cast::<__m256i>());
             let cmp = _mm256_cmpeq_epi8(va, vb);
             if _mm256_movemask_epi8(cmp) != -1i32 {
                 return false;

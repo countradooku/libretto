@@ -30,7 +30,7 @@ pub struct ShowArgs {
 
 /// Run the show command.
 pub async fn run(args: ShowArgs) -> Result<()> {
-    use crate::output::table::{kv_table, Table};
+    use crate::output::table::{Table, kv_table};
     use crate::output::{header, info, warning};
     use libretto_core::PackageId;
     use libretto_repository::Repository;
@@ -43,10 +43,10 @@ pub async fn run(args: ShowArgs) -> Result<()> {
 
     let package_name = args.package.as_ref().unwrap();
 
-    header(&format!("Package: {}", package_name));
+    header(&format!("Package: {package_name}"));
 
     let package_id = PackageId::parse(package_name)
-        .ok_or_else(|| anyhow::anyhow!("Invalid package name: {}", package_name))?;
+        .ok_or_else(|| anyhow::anyhow!("Invalid package name: {package_name}"))?;
 
     let repo = Repository::packagist()?;
     repo.init_packagist().await?;
@@ -72,7 +72,7 @@ pub async fn run(args: ShowArgs) -> Result<()> {
             if colors {
                 println!("{}", package_name.green().bold());
             } else {
-                println!("{}", package_name);
+                println!("{package_name}");
             }
             println!();
 
@@ -94,7 +94,7 @@ pub async fn run(args: ShowArgs) -> Result<()> {
             if let Some(source) = &latest.source {
                 match source {
                     libretto_core::PackageSource::Git { url, reference } => {
-                        info_table.row(["source", &format!("{} ({})", url, reference)]);
+                        info_table.row(["source", &format!("{url} ({reference})")]);
                     }
                     libretto_core::PackageSource::Dist { url, .. } => {
                         info_table.row(["source", url.as_str()]);
@@ -122,11 +122,7 @@ pub async fn run(args: ShowArgs) -> Result<()> {
                 for author in &latest.authors {
                     let email = author.email.as_deref().unwrap_or("");
                     if colors {
-                        println!(
-                            "  {} {}",
-                            author.name.cyan(),
-                            format!("<{}>", email).dimmed()
-                        );
+                        println!("  {} {}", author.name.cyan(), format!("<{email}>").dimmed());
                     } else {
                         println!("  {} <{}>", author.name, email);
                     }
@@ -203,7 +199,7 @@ pub async fn run(args: ShowArgs) -> Result<()> {
         }
         Err(e) => {
             spinner.finish_and_clear();
-            anyhow::bail!("Failed to fetch package info: {}", e);
+            anyhow::bail!("Failed to fetch package info: {e}");
         }
     }
 
@@ -385,10 +381,10 @@ async fn show_tree(lock: &sonic_rs::Value) -> Result<()> {
                 prefix,
                 connector,
                 name.green(),
-                format!(" {}", version).yellow()
+                format!(" {version}").yellow()
             );
         } else {
-            println!("{}{}{} {}", prefix, connector, name, version);
+            println!("{prefix}{connector}{name} {version}");
         }
 
         // Avoid cycles
@@ -405,11 +401,7 @@ async fn show_tree(lock: &sonic_rs::Value) -> Result<()> {
                     "{}{}",
                     prefix,
                     if unicode {
-                        if is_last {
-                            "    "
-                        } else {
-                            "\u{2502}   "
-                        }
+                        if is_last { "    " } else { "\u{2502}   " }
                     } else if is_last {
                         "    "
                     } else {

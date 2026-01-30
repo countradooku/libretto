@@ -3,9 +3,9 @@
 //! This crate provides:
 //!
 //! - **Platform Detection**: OS, architecture, and feature detection
-//! - **Platform-specific I/O**: io_uring (Linux), IOCP (Windows), kqueue (macOS)
+//! - **Platform-specific I/O**: `io_uring` (Linux), IOCP (Windows), kqueue (macOS)
 //! - **File System Abstractions**: Cross-platform paths, atomic operations, symlinks
-//! - **SIMD Support**: SSE4.2, AVX2, AVX-512 (x86_64), NEON (ARM64) with runtime detection
+//! - **SIMD Support**: SSE4.2, AVX2, AVX-512 (`x86_64`), NEON (ARM64) with runtime detection
 //! - **Platform Features**: Permissions, signals, process spawning
 //! - **Shell Integration**: Execute commands across different shells
 //! - **Temp Directory Management**: Safe temp file handling with cleanup
@@ -15,17 +15,17 @@
 //!
 //! | Platform | Architecture | Status |
 //! |----------|-------------|--------|
-//! | Linux    | x86_64      | Full   |
+//! | Linux    | `x86_64`    | Full   |
 //! | Linux    | aarch64     | Full   |
-//! | macOS    | x86_64      | Full   |
+//! | macOS    | `x86_64`    | Full   |
 //! | macOS    | aarch64     | Full   |
-//! | Windows  | x86_64      | Full   |
+//! | Windows  | `x86_64`    | Full   |
 //!
 //! # Performance
 //!
 //! Designed for 100% feature parity across platforms with <1% performance variance.
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod cpu;
@@ -42,8 +42,7 @@ pub mod temp;
 pub mod tls;
 
 use directories::ProjectDirs;
-use once_cell::sync::Lazy;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::LazyLock};
 
 pub use cpu::{CpuFeatures, SimdCapability};
 pub use error::{PlatformError, Result};
@@ -57,7 +56,7 @@ pub use simd::{SimdOps, SimdRuntime};
 pub use temp::{TempDir, TempFile, TempManager};
 
 /// Current platform information (lazily initialized singleton).
-static PLATFORM: Lazy<Platform> = Lazy::new(Platform::detect);
+static PLATFORM: LazyLock<Platform> = LazyLock::new(Platform::detect);
 
 /// Comprehensive platform information.
 #[derive(Debug, Clone)]
@@ -103,8 +102,7 @@ impl Platform {
                 (
                     d.cache_dir()
                         .parent()
-                        .map(std::path::Path::to_path_buf)
-                        .unwrap_or_else(std::env::temp_dir),
+                        .map_or_else(std::env::temp_dir, std::path::Path::to_path_buf),
                     d.cache_dir().to_path_buf(),
                     d.config_dir().to_path_buf(),
                     d.data_dir().to_path_buf(),
@@ -176,7 +174,7 @@ impl Platform {
         matches!(self.os, Os::Linux | Os::MacOs)
     }
 
-    /// Check if x86_64 architecture.
+    /// Check if `x86_64` architecture.
     #[must_use]
     pub const fn is_x86_64(&self) -> bool {
         matches!(self.arch, Arch::X86_64)
@@ -197,9 +195,7 @@ impl Platform {
     /// Get composer home equivalent.
     #[must_use]
     pub fn composer_home(&self) -> PathBuf {
-        std::env::var("COMPOSER_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| self.config_dir.clone())
+        std::env::var("COMPOSER_HOME").map_or_else(|_| self.config_dir.clone(), PathBuf::from)
     }
 
     /// Validate platform is supported.
@@ -216,7 +212,7 @@ impl Platform {
         }
     }
 
-    /// Check if io_uring is available (Linux 5.1+).
+    /// Check if `io_uring` is available (Linux 5.1+).
     #[must_use]
     pub fn supports_io_uring(&self) -> bool {
         if !self.is_linux() {
@@ -224,7 +220,7 @@ impl Platform {
         }
         self.kernel_version
             .as_ref()
-            .map_or(false, |v| v.major >= 5 && (v.major > 5 || v.minor >= 1))
+            .is_some_and(|v| v.major >= 5 && (v.major > 5 || v.minor >= 1))
     }
 
     /// Check if IOCP is available (Windows).
@@ -268,7 +264,7 @@ impl Platform {
         }
     }
 
-    fn detect_case_sensitivity(os: &Os) -> bool {
+    const fn detect_case_sensitivity(os: &Os) -> bool {
         match os {
             Os::Linux => true,
             Os::MacOs | Os::Windows => false,
@@ -348,9 +344,9 @@ pub enum OsFamily {
 /// CPU architecture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Arch {
-    /// x86_64 / AMD64.
+    /// `x86_64` / AMD64.
     X86_64,
-    /// ARM64 / AArch64.
+    /// ARM64 / `AArch64`.
     Aarch64,
     /// Unknown architecture.
     Unknown,
@@ -444,7 +440,7 @@ impl KernelVersion {
     }
 
     #[cfg(not(target_os = "macos"))]
-    fn detect_macos() -> Option<Self> {
+    const fn detect_macos() -> Option<Self> {
         None
     }
 
@@ -462,7 +458,7 @@ impl KernelVersion {
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn detect_windows() -> Option<Self> {
+    const fn detect_windows() -> Option<Self> {
         None
     }
 

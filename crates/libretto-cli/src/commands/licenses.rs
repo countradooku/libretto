@@ -47,19 +47,19 @@ pub async fn run(args: LicensesArgs) -> Result<()> {
     let mut licenses: Vec<PackageLicense> = Vec::new();
 
     // Collect license info from packages
-    if !args.dev {
-        if let Some(packages) = lock.get("packages").and_then(|v| v.as_array()) {
-            for pkg in packages {
-                licenses.push(extract_license(pkg, false));
-            }
+    if !args.dev
+        && let Some(packages) = lock.get("packages").and_then(|v| v.as_array())
+    {
+        for pkg in packages {
+            licenses.push(extract_license(pkg, false));
         }
     }
 
-    if !args.no_dev {
-        if let Some(packages) = lock.get("packages-dev").and_then(|v| v.as_array()) {
-            for pkg in packages {
-                licenses.push(extract_license(pkg, true));
-            }
+    if !args.no_dev
+        && let Some(packages) = lock.get("packages-dev").and_then(|v| v.as_array())
+    {
+        for pkg in packages {
+            licenses.push(extract_license(pkg, true));
         }
     }
 
@@ -193,7 +193,7 @@ fn output_summary(licenses: &[PackageLicense]) -> Result<()> {
 
     // Sort by total count
     let mut sorted: Vec<_> = counts.into_iter().collect();
-    sorted.sort_by(|a, b| (b.1 .0 + b.1 .1).cmp(&(a.1 .0 + a.1 .1)));
+    sorted.sort_by(|a, b| (b.1.0 + b.1.1).cmp(&(a.1.0 + a.1.1)));
 
     let mut table = Table::new();
     table.headers(["License", "Production", "Dev", "Total"]);
@@ -245,10 +245,7 @@ fn output_summary(licenses: &[PackageLicense]) -> Result<()> {
         .sum::<usize>();
     let other = total_prod + total_dev - permissive - copyleft;
 
-    println!(
-        "Summary: {} permissive, {} copyleft, {} other",
-        permissive, copyleft, other
-    );
+    println!("Summary: {permissive} permissive, {copyleft} copyleft, {other} other");
 
     Ok(())
 }

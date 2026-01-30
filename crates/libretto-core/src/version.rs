@@ -45,12 +45,10 @@ impl VersionConstraint {
         if self.raw == "*" {
             return true;
         }
-        self.to_semver_req()
-            .map(|req| req.matches(version))
-            .unwrap_or(false)
+        self.to_semver_req().is_some_and(|req| req.matches(version))
     }
 
-    /// Convert to semver VersionReq.
+    /// Convert to semver `VersionReq`.
     fn to_semver_req(&self) -> Option<VersionReq> {
         let normalized = self.normalize_constraint();
         VersionReq::parse(&normalized).ok()
@@ -66,6 +64,8 @@ impl VersionConstraint {
         }
 
         // Handle .* wildcard patterns (e.g., "3.*", "7.*", "1.2.*")
+        // Note: ".x" is a version wildcard, not a file extension
+        #[allow(clippy::case_sensitive_file_extension_comparisons)]
         if s.ends_with(".*") || s.ends_with(".x") {
             let prefix = &s[..s.len() - 2];
             let parts: Vec<&str> = prefix.split('.').collect();

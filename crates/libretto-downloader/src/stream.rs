@@ -50,6 +50,7 @@ impl std::fmt::Debug for StreamDownloader {
 
 impl StreamDownloader {
     /// Create a new stream downloader.
+    #[must_use]
     pub fn new(client: HttpClient, throttler: BandwidthThrottler) -> Self {
         let config = Arc::clone(client.config());
         Self {
@@ -88,9 +89,7 @@ impl StreamDownloader {
         }
 
         // Decide download strategy based on file size
-        let use_mmap = total_size
-            .map(|s| s >= self.config.mmap_threshold)
-            .unwrap_or(false);
+        let use_mmap = total_size.is_some_and(|s| s >= self.config.mmap_threshold);
 
         debug!(url = %url, use_mmap, state_downloaded = state.downloaded, "choosing download strategy");
 
@@ -217,7 +216,7 @@ impl StreamDownloader {
         let temp_path = state
             .temp_path
             .as_ref()
-            .map_or_else(|| dest.with_extension("partial"), |p| p.clone());
+            .map_or_else(|| dest.with_extension("partial"), std::clone::Clone::clone);
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -338,7 +337,7 @@ impl StreamDownloader {
             downloaded += chunk.len() as u64;
             progress.update(downloaded);
 
-            if chunk_count % 100 == 0 {
+            if chunk_count.is_multiple_of(100) {
                 trace!(url = %url, chunks = chunk_count, bytes = downloaded, "download progress");
             }
         }
@@ -388,11 +387,11 @@ impl StreamDownloader {
     async fn get_content_info(&self, url: &Url) -> Result<(Option<u64>, bool)> {
         // Skip HEAD request for codeload.github.com - it doesn't return content-length
         // and can cause HTTP/2 connection issues with many concurrent requests
-        if let Some(host) = url.host_str() {
-            if host == "codeload.github.com" {
-                debug!(url = %url, "skipping HEAD request for codeload.github.com");
-                return Ok((None, false));
-            }
+        if let Some(host) = url.host_str()
+            && host == "codeload.github.com"
+        {
+            debug!(url = %url, "skipping HEAD request for codeload.github.com");
+            return Ok((None, false));
         }
 
         // Use a timeout for HEAD requests to avoid hanging
@@ -406,8 +405,7 @@ impl StreamDownloader {
                     .headers()
                     .get("accept-ranges")
                     .and_then(|v| v.to_str().ok())
-                    .map(|v| v != "none")
-                    .unwrap_or(false);
+                    .is_some_and(|v| v != "none");
 
                 debug!(url = %url, size = ?size, resume, "HEAD request succeeded");
                 Ok((size, resume))

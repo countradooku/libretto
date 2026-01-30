@@ -21,7 +21,7 @@ pub enum VcsType {
 impl VcsType {
     /// Get the command name for this VCS.
     #[must_use]
-    pub fn command(&self) -> &'static str {
+    pub const fn command(&self) -> &'static str {
         match self {
             Self::Git => "git",
             Self::Svn => "svn",
@@ -77,6 +77,7 @@ impl std::str::FromStr for VcsType {
 /// VCS reference (branch, tag, commit, revision).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", content = "value")]
+#[derive(Default)]
 pub enum VcsRef {
     /// Branch name.
     Branch(String),
@@ -85,6 +86,7 @@ pub enum VcsRef {
     /// Git commit SHA or SVN/Hg revision.
     Commit(String),
     /// Default branch (HEAD, trunk, default).
+    #[default]
     Default,
 }
 
@@ -150,19 +152,19 @@ impl VcsRef {
 
     /// Check if this is a commit reference.
     #[must_use]
-    pub fn is_commit(&self) -> bool {
+    pub const fn is_commit(&self) -> bool {
         matches!(self, Self::Commit(_))
     }
 
     /// Check if this is a branch reference.
     #[must_use]
-    pub fn is_branch(&self) -> bool {
+    pub const fn is_branch(&self) -> bool {
         matches!(self, Self::Branch(_))
     }
 
     /// Check if this is a tag reference.
     #[must_use]
-    pub fn is_tag(&self) -> bool {
+    pub const fn is_tag(&self) -> bool {
         matches!(self, Self::Tag(_))
     }
 }
@@ -175,12 +177,6 @@ impl fmt::Display for VcsRef {
             Self::Commit(s) => write!(f, "commit:{s}"),
             Self::Default => write!(f, "default"),
         }
-    }
-}
-
-impl Default for VcsRef {
-    fn default() -> Self {
-        Self::Default
     }
 }
 
@@ -243,7 +239,7 @@ impl CloneOptions {
 
     /// Enable recursive submodule cloning.
     #[must_use]
-    pub fn with_submodules(mut self) -> Self {
+    pub const fn with_submodules(mut self) -> Self {
         self.recursive = true;
         self
     }
@@ -264,21 +260,21 @@ impl CloneOptions {
 
     /// Enable Git LFS.
     #[must_use]
-    pub fn with_lfs(mut self) -> Self {
+    pub const fn with_lfs(mut self) -> Self {
         self.lfs = true;
         self
     }
 
     /// Set timeout.
     #[must_use]
-    pub fn with_timeout(mut self, secs: u64) -> Self {
+    pub const fn with_timeout(mut self, secs: u64) -> Self {
         self.timeout_secs = Some(secs);
         self
     }
 
     /// Disable timeout.
     #[must_use]
-    pub fn without_timeout(mut self) -> Self {
+    pub const fn without_timeout(mut self) -> Self {
         self.timeout_secs = None;
         self
     }
@@ -327,25 +323,25 @@ pub struct RepoStatus {
 impl RepoStatus {
     /// Check if repository is clean (no modifications).
     #[must_use]
-    pub fn is_clean(&self) -> bool {
+    pub const fn is_clean(&self) -> bool {
         self.modified == 0 && self.staged == 0 && self.untracked == 0
     }
 
     /// Check if repository has unpushed commits.
     #[must_use]
-    pub fn has_unpushed(&self) -> bool {
+    pub const fn has_unpushed(&self) -> bool {
         self.ahead > 0
     }
 
     /// Check if repository is behind remote.
     #[must_use]
-    pub fn is_behind(&self) -> bool {
+    pub const fn is_behind(&self) -> bool {
         self.behind > 0
     }
 }
 
 /// Credentials for VCS authentication.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum VcsCredentials {
     /// Username and password (or token).
     UserPass {
@@ -369,6 +365,7 @@ pub enum VcsCredentials {
         helper: String,
     },
     /// No authentication.
+    #[default]
     None,
 }
 
@@ -384,7 +381,7 @@ impl VcsCredentials {
 
     /// Create SSH key credentials.
     #[must_use]
-    pub fn ssh_key(private_key: PathBuf, passphrase: Option<String>) -> Self {
+    pub const fn ssh_key(private_key: PathBuf, passphrase: Option<String>) -> Self {
         Self::SshKey {
             private_key,
             passphrase,
@@ -398,12 +395,6 @@ impl VcsCredentials {
             username: "oauth2".to_string(),
             password: token.into(),
         }
-    }
-}
-
-impl Default for VcsCredentials {
-    fn default() -> Self {
-        Self::None
     }
 }
 

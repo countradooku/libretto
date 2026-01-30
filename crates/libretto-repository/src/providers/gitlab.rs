@@ -1,9 +1,9 @@
 //! GitLab API client for fetching repository metadata.
 
-use crate::cache::{RepositoryCache, DEFAULT_METADATA_TTL};
+use crate::cache::{DEFAULT_METADATA_TTL, RepositoryCache};
 use crate::client::{AuthType, HttpClient, HttpClientConfig};
 use crate::error::{RepositoryError, Result};
-use crate::providers::{parse_vcs_url, VcsProvider};
+use crate::providers::{VcsProvider, parse_vcs_url};
 use serde::Deserialize;
 use std::future::Future;
 use std::pin::Pin;
@@ -37,6 +37,7 @@ impl Default for GitLabConfig {
 
 impl GitLabConfig {
     /// Create configuration for self-hosted GitLab.
+    #[must_use]
     pub fn self_hosted(base_url: Url, token: String) -> Self {
         let api_url = base_url.join("api/v4/").expect("valid URL");
         Self {
@@ -47,6 +48,7 @@ impl GitLabConfig {
     }
 
     /// Create configuration with token.
+    #[must_use]
     pub fn with_token(token: String) -> Self {
         Self {
             token: Some(token),
@@ -90,10 +92,10 @@ impl GitLabClient {
             }
         })?;
 
-        if let Some(ref token) = config.token {
-            if let Some(host) = config.api_url.host_str() {
-                http.set_auth(host, AuthType::Bearer(token.clone()));
-            }
+        if let Some(ref token) = config.token
+            && let Some(host) = config.api_url.host_str()
+        {
+            http.set_auth(host, AuthType::Bearer(token.clone()));
         }
 
         Ok(Self {
@@ -139,11 +141,11 @@ impl GitLabClient {
         let url = self.api_url(owner, repo, &format!("repository/files/{encoded_path}/raw"))?;
         let cache_key = format!("gitlab:{owner}/{repo}/{path}@{reference}");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(content) = String::from_utf8(data.to_vec()) {
-                debug!(owner, repo, path, reference, "cache hit");
-                return Ok(content);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(content) = String::from_utf8(data.to_vec())
+        {
+            debug!(owner, repo, path, reference, "cache hit");
+            return Ok(content);
         }
 
         let mut url = url;
@@ -169,10 +171,10 @@ impl GitLabClient {
         let url = self.api_url(owner, repo, "repository/tags")?;
         let cache_key = format!("gitlab:{owner}/{repo}/tags");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(tags) = sonic_rs::from_slice::<Vec<GitLabTag>>(&data) {
-                return Ok(tags);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(tags) = sonic_rs::from_slice::<Vec<GitLabTag>>(&data)
+        {
+            return Ok(tags);
         }
 
         let response = self.http.get(&url).await?;
@@ -197,10 +199,10 @@ impl GitLabClient {
         let url = self.api_url(owner, repo, "repository/branches")?;
         let cache_key = format!("gitlab:{owner}/{repo}/branches");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(branches) = sonic_rs::from_slice::<Vec<GitLabBranch>>(&data) {
-                return Ok(branches);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(branches) = sonic_rs::from_slice::<Vec<GitLabBranch>>(&data)
+        {
+            return Ok(branches);
         }
 
         let response = self.http.get(&url).await?;
@@ -235,10 +237,10 @@ impl GitLabClient {
 
         let cache_key = format!("gitlab:{owner}/{repo}/info");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(project) = sonic_rs::from_slice::<GitLabProject>(&data) {
-                return Ok(project);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(project) = sonic_rs::from_slice::<GitLabProject>(&data)
+        {
+            return Ok(project);
         }
 
         let response = self.http.get(&url).await?;
@@ -263,10 +265,10 @@ impl GitLabClient {
         let url = self.api_url(owner, repo, "releases")?;
         let cache_key = format!("gitlab:{owner}/{repo}/releases");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(releases) = sonic_rs::from_slice::<Vec<GitLabRelease>>(&data) {
-                return Ok(releases);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(releases) = sonic_rs::from_slice::<Vec<GitLabRelease>>(&data)
+        {
+            return Ok(releases);
         }
 
         let response = self.http.get(&url).await?;
@@ -288,14 +290,13 @@ impl GitLabClient {
 }
 
 impl VcsProvider for GitLabClient {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "GitLab"
     }
 
     fn can_handle(&self, url: &Url) -> bool {
         url.host_str()
-            .map(|h| h.contains("gitlab.com") || h.contains("gitlab."))
-            .unwrap_or(false)
+            .is_some_and(|h| h.contains("gitlab.com") || h.contains("gitlab."))
     }
 
     fn fetch_composer_json<'a>(
@@ -505,7 +506,7 @@ mod urlencoding {
                     encoded.push(byte as char);
                 }
                 _ => {
-                    encoded.push_str(&format!("%{:02X}", byte));
+                    encoded.push_str(&format!("%{byte:02X}"));
                 }
             }
         }

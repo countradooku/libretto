@@ -87,8 +87,8 @@ async fn run_subcommand(command: &str, args: &[String]) -> Result<()> {
 
             // Parse flags from args
             let mut packages = Vec::new();
-            let mut iter = args.iter();
-            while let Some(arg) = iter.next() {
+            let iter = args.iter();
+            for arg in iter {
                 match arg.as_str() {
                     "--dev" | "-D" => require_args.dev = true,
                     "--no-update" => require_args.no_update = true,
@@ -137,6 +137,8 @@ async fn run_subcommand(command: &str, args: &[String]) -> Result<()> {
                 dry_run: args.contains(&"--dry-run".to_string()),
                 root_reqs: args.contains(&"--root-reqs".to_string()),
                 lock: args.contains(&"--lock".to_string()),
+                audit: args.contains(&"--audit".to_string()),
+                fail_on_audit: args.contains(&"--fail-on-audit".to_string()),
             };
 
             commands::update::run(update_args).await
@@ -161,6 +163,9 @@ async fn run_subcommand(command: &str, args: &[String]) -> Result<()> {
                 minimum_stability: None,
                 no_progress: args.contains(&"--no-progress".to_string()),
                 concurrency: 64,
+                audit: args.contains(&"--audit".to_string()),
+                fail_on_audit: args.contains(&"--fail-on-audit".to_string()),
+                verify_checksums: args.contains(&"--verify-checksums".to_string()),
             };
 
             commands::install::run(install_args).await
@@ -212,8 +217,7 @@ async fn run_subcommand(command: &str, args: &[String]) -> Result<()> {
 
         _ => {
             anyhow::bail!(
-                "Unknown global command '{}'. Available commands: require, remove, update, install, show, outdated, dump-autoload",
-                command
+                "Unknown global command '{command}'. Available commands: require, remove, update, install, show, outdated, dump-autoload"
             );
         }
     }

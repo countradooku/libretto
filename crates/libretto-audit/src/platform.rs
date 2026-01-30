@@ -230,6 +230,7 @@ impl PhpPlatform {
     }
 
     /// Validate multiple requirements.
+    #[must_use]
     pub fn validate_requirements(&self, requirements: &[Requirement]) -> Vec<PlatformError> {
         let mut errors = Vec::new();
 
@@ -303,21 +304,22 @@ impl PlatformValidator {
     /// # Errors
     /// Returns error if platform detection fails.
     pub async fn new(mode: ValidationMode) -> Result<Self> {
-        let platform = if mode != ValidationMode::Disabled {
-            PhpPlatform::detect().await?
-        } else {
+        let platform = if mode == ValidationMode::Disabled {
             // Create dummy platform
             PhpPlatform {
                 version: Version::parse("8.0.0").unwrap(),
                 extensions: AHashSet::new(),
                 libraries: AHashSet::new(),
             }
+        } else {
+            PhpPlatform::detect().await?
         };
 
         Ok(Self { platform, mode })
     }
 
     /// Validate requirements.
+    #[must_use]
     pub fn validate(&self, requirements: &[Requirement]) -> Vec<PlatformError> {
         if self.mode == ValidationMode::Disabled {
             return Vec::new();

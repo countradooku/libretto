@@ -27,7 +27,7 @@ pub struct ExtractOptions {
 impl ExtractOptions {
     /// Create default options.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             strip_prefix: 0,
             overwrite: true,
@@ -76,7 +76,7 @@ impl Default for Extractor {
 impl Extractor {
     /// Create a new extractor with default options.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             options: ExtractOptions::new(),
         }
@@ -84,7 +84,7 @@ impl Extractor {
 
     /// Create extractor with options.
     #[must_use]
-    pub fn with_options(options: ExtractOptions) -> Self {
+    pub const fn with_options(options: ExtractOptions) -> Self {
         Self { options }
     }
 
@@ -168,8 +168,7 @@ impl Extractor {
             // Validate path doesn't escape dest
             if !out_path.starts_with(dest) {
                 return Err(DownloadError::Archive(format!(
-                    "path escape attempt: {}",
-                    filename
+                    "path escape attempt: {filename}"
                 )));
             }
 
@@ -212,14 +211,14 @@ impl Extractor {
                 files_extracted += 1;
 
                 #[cfg(unix)]
-                if self.options.preserve_permissions {
-                    if let Some(mode) = unix_mode {
-                        use std::os::unix::fs::PermissionsExt;
-                        let _ = std::fs::set_permissions(
-                            &out_path,
-                            std::fs::Permissions::from_mode(mode.into()),
-                        );
-                    }
+                if self.options.preserve_permissions
+                    && let Some(mode) = unix_mode
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        &out_path,
+                        std::fs::Permissions::from_mode(mode.into()),
+                    );
                 }
 
                 trace!(file = ?out_path, size, "extracted file");

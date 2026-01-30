@@ -173,7 +173,7 @@ impl Validator {
 
     /// Enable strict mode.
     #[must_use]
-    pub fn strict(mut self, strict: bool) -> Self {
+    pub const fn strict(mut self, strict: bool) -> Self {
         self.strict = strict;
         self
     }
@@ -246,45 +246,45 @@ impl Validator {
     /// Validate a config section.
     pub fn validate_config(&self, config: &ComposerConfig, result: &mut ValidationResult) {
         // Validate process-timeout
-        if let Some(timeout) = config.process_timeout {
-            if timeout == 0 {
-                result.add(
-                    ValidationIssue::warning(
-                        "config.process_timeout.zero",
-                        "config.process-timeout",
-                        "timeout of 0 disables timeout",
-                    )
-                    .with_hint("set a positive value for timeout"),
-                );
-            }
+        if let Some(timeout) = config.process_timeout
+            && timeout == 0
+        {
+            result.add(
+                ValidationIssue::warning(
+                    "config.process_timeout.zero",
+                    "config.process-timeout",
+                    "timeout of 0 disables timeout",
+                )
+                .with_hint("set a positive value for timeout"),
+            );
         }
 
         // Validate cache-files-ttl
-        if let Some(ttl) = config.cache_files_ttl {
-            if ttl < 60 {
-                result.add(
-                    ValidationIssue::warning(
-                        "config.cache_ttl.low",
-                        "config.cache-files-ttl",
-                        "very low cache TTL may impact performance",
-                    )
-                    .with_hint("consider a value of at least 3600 (1 hour)"),
-                );
-            }
+        if let Some(ttl) = config.cache_files_ttl
+            && ttl < 60
+        {
+            result.add(
+                ValidationIssue::warning(
+                    "config.cache_ttl.low",
+                    "config.cache-files-ttl",
+                    "very low cache TTL may impact performance",
+                )
+                .with_hint("consider a value of at least 3600 (1 hour)"),
+            );
         }
 
         // Validate cache-files-maxsize
-        if let Some(ref maxsize) = config.cache_files_maxsize {
-            if let Err(e) = crate::env::parse_byte_size(maxsize) {
-                result.add(
-                    ValidationIssue::error(
-                        "config.cache_maxsize.invalid",
-                        "config.cache-files-maxsize",
-                        format!("invalid size: {e}"),
-                    )
-                    .with_hint("use format like '300MiB' or '1G'"),
-                );
-            }
+        if let Some(ref maxsize) = config.cache_files_maxsize
+            && let Err(e) = crate::env::parse_byte_size(maxsize)
+        {
+            result.add(
+                ValidationIssue::error(
+                    "config.cache_maxsize.invalid",
+                    "config.cache-files-maxsize",
+                    format!("invalid size: {e}"),
+                )
+                .with_hint("use format like '300MiB' or '1G'"),
+            );
         }
 
         // Validate secure-http with disable-tls
@@ -300,25 +300,25 @@ impl Validator {
         }
 
         // Validate github-protocols
-        if let Some(ref protocols) = config.github_protocols {
-            if protocols.is_empty() {
-                result.add(ValidationIssue::error(
-                    "config.github_protocols.empty",
-                    "config.github-protocols",
-                    "at least one protocol is required",
-                ));
-            }
+        if let Some(ref protocols) = config.github_protocols
+            && protocols.is_empty()
+        {
+            result.add(ValidationIssue::error(
+                "config.github_protocols.empty",
+                "config.github-protocols",
+                "at least one protocol is required",
+            ));
         }
 
         // Validate vendor-dir
-        if let Some(ref vendor) = config.vendor_dir {
-            if vendor.is_empty() {
-                result.add(ValidationIssue::error(
-                    "config.vendor_dir.empty",
-                    "config.vendor-dir",
-                    "vendor directory cannot be empty",
-                ));
-            }
+        if let Some(ref vendor) = config.vendor_dir
+            && vendor.is_empty()
+        {
+            result.add(ValidationIssue::error(
+                "config.vendor_dir.empty",
+                "config.vendor-dir",
+                "vendor directory cannot be empty",
+            ));
         }
     }
 
@@ -542,13 +542,13 @@ impl Validator {
     ) {
         // Validate PSR-4 namespaces
         if let Some(ref psr4) = autoload.psr4 {
-            for (namespace, _) in psr4 {
+            for namespace in psr4.keys() {
                 // PSR-4 namespaces should end with backslash
                 if !namespace.is_empty() && !namespace.ends_with('\\') {
                     result.add(
                         ValidationIssue::warning(
                             "autoload.psr4.namespace",
-                            &format!("{prefix}.psr-4.{namespace}"),
+                            format!("{prefix}.psr-4.{namespace}"),
                             "PSR-4 namespace should end with backslash",
                         )
                         .with_hint("add trailing backslash to namespace"),
@@ -559,7 +559,7 @@ impl Validator {
                 if namespace.contains('/') {
                     result.add(ValidationIssue::error(
                         "autoload.psr4.namespace.invalid",
-                        &format!("{prefix}.psr-4.{namespace}"),
+                        format!("{prefix}.psr-4.{namespace}"),
                         "namespace should use backslashes, not forward slashes",
                     ));
                 }

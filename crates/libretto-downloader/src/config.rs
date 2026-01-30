@@ -379,7 +379,7 @@ impl ChecksumType {
 
     /// Detect checksum type from hex string length.
     #[must_use]
-    pub fn detect(hex: &str) -> Option<Self> {
+    pub const fn detect(hex: &str) -> Option<Self> {
         Self::detect_from_len(hex.len())
     }
 }

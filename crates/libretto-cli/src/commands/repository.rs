@@ -75,16 +75,13 @@ pub async fn run(args: RepositoryArgs) -> Result<()> {
         } => {
             header("Adding repository");
             add_repository(&config_path, &name, &url, &repo_type)?;
-            success(&format!(
-                "Added repository '{}' ({}: {})",
-                name, repo_type, url
-            ));
+            success(&format!("Added repository '{name}' ({repo_type}: {url})"));
         }
 
         RepositoryAction::Remove { name } => {
             header("Removing repository");
             remove_repository(&config_path, &name)?;
-            success(&format!("Removed repository '{}'", name));
+            success(&format!("Removed repository '{name}'"));
         }
 
         RepositoryAction::List => {
@@ -95,13 +92,13 @@ pub async fn run(args: RepositoryArgs) -> Result<()> {
         RepositoryAction::Enable { name } => {
             header("Enabling repository");
             toggle_repository(&config_path, &name, true)?;
-            success(&format!("Enabled repository '{}'", name));
+            success(&format!("Enabled repository '{name}'"));
         }
 
         RepositoryAction::Disable { name } => {
             header("Disabling repository");
             toggle_repository(&config_path, &name, false)?;
-            success(&format!("Disabled repository '{}'", name));
+            success(&format!("Disabled repository '{name}'"));
         }
     }
 
@@ -244,11 +241,10 @@ fn list_repositories(config_path: &std::path::PathBuf) -> Result<()> {
                         .and_then(|t| t.as_str())
                         .unwrap_or("composer");
                     let url = repo.get("url").and_then(|u| u.as_str()).unwrap_or("");
-                    let enabled = !repo
+                    let enabled = repo
                         .get("enabled")
-                        .and_then(|e| e.as_bool())
-                        .map(|e| !e)
-                        .unwrap_or(false);
+                        .and_then(sonic_rs::JsonValueTrait::as_bool)
+                        .is_none_or(|e| e);
 
                     repos.push((
                         name.to_string(),
@@ -258,32 +254,31 @@ fn list_repositories(config_path: &std::path::PathBuf) -> Result<()> {
                     ));
                 }
             }
-        } else if repositories.is_object() {
-            if let Some(obj) = repositories.as_object() {
-                for (name, repo) in obj {
-                    if repo.as_bool().is_some() {
-                        // Disabling a default repo
-                        continue;
-                    }
-
-                    let repo_type = repo
-                        .get("type")
-                        .and_then(|t| t.as_str())
-                        .unwrap_or("composer");
-                    let url = repo.get("url").and_then(|u| u.as_str()).unwrap_or("");
-                    let enabled = !repo
-                        .get("enabled")
-                        .and_then(|e| e.as_bool())
-                        .map(|e| !e)
-                        .unwrap_or(false);
-
-                    repos.push((
-                        name.to_string(),
-                        repo_type.to_string(),
-                        url.to_string(),
-                        enabled,
-                    ));
+        } else if repositories.is_object()
+            && let Some(obj) = repositories.as_object()
+        {
+            for (name, repo) in obj {
+                if repo.as_bool().is_some() {
+                    // Disabling a default repo
+                    continue;
                 }
+
+                let repo_type = repo
+                    .get("type")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("composer");
+                let url = repo.get("url").and_then(|u| u.as_str()).unwrap_or("");
+                let enabled = repo
+                    .get("enabled")
+                    .and_then(sonic_rs::JsonValueTrait::as_bool)
+                    .is_none_or(|e| e);
+
+                repos.push((
+                    name.to_string(),
+                    repo_type.to_string(),
+                    url.to_string(),
+                    enabled,
+                ));
             }
         }
     }
@@ -365,12 +360,12 @@ fn toggle_repository(config_path: &std::path::PathBuf, name: &str, enable: bool)
                     }
                 }
             }
-        } else if let Some(obj) = repos.as_object_mut() {
-            if let Some(repo) = obj.get_mut(&name.to_string()) {
-                repo.as_object_mut()
-                    .unwrap()
-                    .insert("enabled", sonic_rs::json!(enable));
-            }
+        } else if let Some(obj) = repos.as_object_mut()
+            && let Some(repo) = obj.get_mut(&name.to_string())
+        {
+            repo.as_object_mut()
+                .unwrap()
+                .insert("enabled", sonic_rs::json!(enable));
         }
     }
 

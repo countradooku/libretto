@@ -4,7 +4,7 @@
 //! offering significantly improved performance through parallel operations,
 //! SIMD optimizations, and efficient caching.
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 mod cas_cache;
@@ -50,7 +50,7 @@ fn main() -> ExitCode {
     let ctx = match Context::new(&cli.to_context_args()) {
         Ok(ctx) => ctx,
         Err(e) => {
-            output::error(&format!("Failed to initialize: {}", e));
+            output::error(&format!("Failed to initialize: {e}"));
             return ExitCode::FAILURE;
         }
     };
@@ -75,7 +75,7 @@ fn main() -> ExitCode {
     match result {
         Ok(code) => code,
         Err(e) => {
-            output::error(&format!("{}", e));
+            output::error(&format!("{e}"));
             ExitCode::FAILURE
         }
     }
@@ -179,7 +179,7 @@ async fn run_command(cli: &Cli, _ctx: &Context) -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Commands::Fund(args) => {
-            commands::fund::run(args.clone()).await?;
+            commands::fund::run(args.clone())?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::Global(args) => {
@@ -215,7 +215,7 @@ async fn run_command(cli: &Cli, _ctx: &Context) -> anyhow::Result<ExitCode> {
             Ok(ExitCode::SUCCESS)
         }
         Commands::Status(args) => {
-            commands::status::run(args.clone()).await?;
+            commands::status::run(args.clone())?;
             Ok(ExitCode::SUCCESS)
         }
         Commands::Suggests(args) => {

@@ -5,10 +5,10 @@
 //! - Atomic writes with full integrity verification
 //! - SIMD-accelerated hashing and comparison
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use libretto_lockfile::{
-    compute_diff, AtomicWriter, ContentHasher, DeterministicSerializer, IntegrityHasher,
-    LockGenerator, LockedPackage, LockfileManager, PackageDistInfo, PackageSourceInfo, Validator,
+    AtomicWriter, ContentHasher, DeterministicSerializer, IntegrityHasher, LockGenerator,
+    LockedPackage, LockfileManager, PackageDistInfo, PackageSourceInfo, Validator, compute_diff,
 };
 use std::collections::BTreeMap;
 use tempfile::TempDir;
@@ -128,7 +128,7 @@ fn bench_hashing(c: &mut Criterion) {
                 &BTreeMap::new(),
             );
             black_box(hash)
-        })
+        });
     });
 
     // Integrity hash (BLAKE3)

@@ -166,7 +166,7 @@ fn output_grouped(suggestions: &[Suggestion]) -> Result<()> {
         if colors {
             println!("{}", package.cyan().bold());
         } else {
-            println!("{}", package);
+            println!("{package}");
         }
 
         for suggestion in suggestions {
@@ -176,12 +176,10 @@ fn output_grouped(suggestions: &[Suggestion]) -> Result<()> {
                 } else {
                     "[installed]".to_string()
                 }
+            } else if colors {
+                "[not installed]".yellow().to_string()
             } else {
-                if colors {
-                    "[not installed]".yellow().to_string()
-                } else {
-                    "[not installed]".to_string()
-                }
+                "[not installed]".to_string()
             };
 
             let suggested = if colors {
@@ -191,14 +189,14 @@ fn output_grouped(suggestions: &[Suggestion]) -> Result<()> {
             };
 
             if suggestion.reason.is_empty() {
-                println!("  {} {}", suggested, status);
+                println!("  {suggested} {status}");
             } else {
                 let reason = if colors {
                     suggestion.reason.dimmed().to_string()
                 } else {
                     format!("({})", suggestion.reason)
                 };
-                println!("  {} {} - {}", suggested, status, reason);
+                println!("  {suggested} {status} - {reason}");
             }
         }
         println!();

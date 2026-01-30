@@ -224,8 +224,7 @@ pub async fn run(args: OutdatedArgs) -> Result<()> {
     println!();
     if outdated_count > 0 {
         warning(&format!(
-            "{} outdated package(s): {} major, {} minor, {} patch",
-            outdated_count, major_count, minor_count, patch_count
+            "{outdated_count} outdated package(s): {major_count} major, {minor_count} minor, {patch_count} patch"
         ));
 
         if args.strict {

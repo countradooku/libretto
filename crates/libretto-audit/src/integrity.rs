@@ -55,7 +55,7 @@ pub struct Hash {
 impl Hash {
     /// Create new hash.
     #[must_use]
-    pub fn new(algorithm: HashAlgorithm, value: String) -> Self {
+    pub const fn new(algorithm: HashAlgorithm, value: String) -> Self {
         Self { algorithm, value }
     }
 
@@ -133,6 +133,7 @@ impl IntegrityVerifier {
     }
 
     /// Finalize and return all computed hashes.
+    #[must_use]
     pub fn finalize(self) -> Vec<Hash> {
         let mut hashes = Vec::with_capacity(3);
 

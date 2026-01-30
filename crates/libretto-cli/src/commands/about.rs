@@ -11,13 +11,13 @@ pub struct AboutArgs {}
 pub async fn run(_args: AboutArgs) -> anyhow::Result<()> {
     let colors = crate::output::colors_enabled();
 
-    let logo = r#"
+    let logo = r"
     __    _ __              __  __
    / /   (_) /_  ________  / /_/ /_____
   / /   / / __ \/ ___/ _ \/ __/ __/ __ \
  / /___/ / /_/ / /  /  __/ /_/ /_/ /_/ /
 /_____/_/_.___/_/   \___/\__/\__/\____/
-"#;
+";
 
     if colors {
         println!("{}", logo.cyan().bold());

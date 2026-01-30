@@ -247,7 +247,7 @@ pub struct PackageVersion {
 }
 
 /// Package stability level.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum Stability {
     /// Development version.
     Dev,
@@ -258,13 +258,8 @@ pub enum Stability {
     /// Release candidate.
     Rc,
     /// Stable release.
+    #[default]
     Stable,
-}
-
-impl Default for Stability {
-    fn default() -> Self {
-        Self::Stable
-    }
 }
 
 impl Stability {
@@ -318,22 +313,17 @@ impl std::fmt::Display for Stability {
 }
 
 /// Repository priority for conflict resolution.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum RepositoryPriority {
     /// Lowest priority (last in search order).
     Low = 0,
     /// Normal priority (default).
+    #[default]
     Normal = 50,
     /// High priority (searched first).
     High = 100,
     /// Canonical priority (takes precedence over all).
     Canonical = 200,
-}
-
-impl Default for RepositoryPriority {
-    fn default() -> Self {
-        Self::Normal
-    }
 }
 
 /// Repository with priority and metadata.
@@ -369,14 +359,14 @@ impl PrioritizedRepository {
 
     /// Set priority.
     #[must_use]
-    pub fn with_priority(mut self, priority: RepositoryPriority) -> Self {
+    pub const fn with_priority(mut self, priority: RepositoryPriority) -> Self {
         self.priority = priority;
         self
     }
 
     /// Set enabled state.
     #[must_use]
-    pub fn with_enabled(mut self, enabled: bool) -> Self {
+    pub const fn with_enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
     }

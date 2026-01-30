@@ -13,7 +13,7 @@ pub struct StatusArgs {
 }
 
 /// Run the status command
-pub async fn run(args: StatusArgs) -> Result<()> {
+pub fn run(args: StatusArgs) -> Result<()> {
     use crate::output::table::Table;
     use crate::output::{header, info, warning};
     use owo_colors::OwoColorize;
@@ -80,12 +80,12 @@ pub async fn run(args: StatusArgs) -> Result<()> {
         if colors {
             println!("{} ({})", name.yellow().bold(), version);
         } else {
-            println!("{} ({})", name, version);
+            println!("{name} ({version})");
         }
 
         if args.verbose {
             for modification in modifications {
-                println!("  {}", modification);
+                println!("  {modification}");
             }
         } else {
             println!("  {} modified file(s)", modifications.len());
@@ -133,7 +133,7 @@ fn check_git_modifications(dir: &std::path::PathBuf) -> Result<Vec<String>> {
         .map(|l| {
             let status = &l[0..2];
             let file = l[3..].trim();
-            format!("{} {}", status, file)
+            format!("{status} {file}")
         })
         .collect();
 

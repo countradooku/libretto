@@ -140,7 +140,7 @@ mod tests {
     fn hex_roundtrip() {
         let hash = ContentHash::from_bytes(b"test");
         let hex = hash.to_hex();
-        let recovered = ContentHash::from_hex(&hex).unwrap();
+        let recovered = ContentHash::from_hex(&hex).expect("valid hex should parse");
         assert_eq!(hash, recovered);
     }
 

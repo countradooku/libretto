@@ -109,7 +109,7 @@ pub async fn run(args: DependsArgs) -> Result<()> {
     let target = args.package.to_lowercase();
     let direct_dependents = dependents.get(&target);
 
-    if direct_dependents.is_none() || direct_dependents.map(|d| d.is_empty()).unwrap_or(true) {
+    if direct_dependents.is_none() || direct_dependents.is_none_or(std::vec::Vec::is_empty) {
         warning(&format!("No packages depend on '{}'", args.package));
         return Ok(());
     }
@@ -141,8 +141,8 @@ pub async fn run(args: DependsArgs) -> Result<()> {
             // Show recursive dependents
             println!();
             info("Recursive dependents:");
-            let mut visited = vec![args.package.clone()];
-            print_recursive_dependents(&direct, &dependents, 1, &mut visited);
+            let mut visited = vec![args.package];
+            print_recursive_dependents(direct, &dependents, 1, &mut visited);
         }
     }
 
@@ -173,12 +173,10 @@ fn print_dependency_tree(
                     } else {
                         "\u{251C}\u{2500}\u{2500}"
                     }
+                } else if is_last {
+                    "`--"
                 } else {
-                    if is_last {
-                        "`--"
-                    } else {
-                        "|--"
-                    }
+                    "|--"
                 };
                 format!("{}{} ", "  ".repeat(depth - 1), connector)
             };
@@ -194,7 +192,7 @@ fn print_dependency_tree(
                     dev_marker.dimmed()
                 );
             } else {
-                println!("{}{} {} {}", prefix, name, constraint, dev_marker);
+                println!("{prefix}{name} {constraint} {dev_marker}");
             }
 
             if recursive && !visited.contains(name) {
@@ -222,19 +220,19 @@ fn print_recursive_dependents(
         }
         visited.push(name.clone());
 
-        if let Some(deps) = dependents.get(name) {
-            if !deps.is_empty() {
-                if colors {
-                    println!("{}{} is required by:", indent, name.cyan());
-                } else {
-                    println!("{}{} is required by:", indent, name);
-                }
-                for (dep_name, constraint, is_dev) in deps {
-                    let dev = if *is_dev { " (dev)" } else { "" };
-                    println!("{}  - {} {}{}", indent, dep_name, constraint, dev);
-                }
-                print_recursive_dependents(deps, dependents, depth + 1, visited);
+        if let Some(deps) = dependents.get(name)
+            && !deps.is_empty()
+        {
+            if colors {
+                println!("{}{} is required by:", indent, name.cyan());
+            } else {
+                println!("{indent}{name} is required by:");
             }
+            for (dep_name, constraint, is_dev) in deps {
+                let dev = if *is_dev { " (dev)" } else { "" };
+                println!("{indent}  - {dep_name} {constraint}{dev}");
+            }
+            print_recursive_dependents(deps, dependents, depth + 1, visited);
         }
     }
 }

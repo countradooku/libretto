@@ -162,7 +162,7 @@ pub enum PlatformError {
 impl PlatformError {
     /// Create an I/O error with path context.
     #[must_use]
-    pub fn io(path: impl Into<PathBuf>, err: std::io::Error) -> Self {
+    pub fn io(path: impl Into<PathBuf>, err: &std::io::Error) -> Self {
         Self::Io {
             path: path.into(),
             message: err.to_string(),
@@ -236,7 +236,7 @@ impl PlatformError {
 
     /// Check if this is a transient error (retryable).
     #[must_use]
-    pub fn is_transient(&self) -> bool {
+    pub const fn is_transient(&self) -> bool {
         matches!(
             self,
             Self::LockTimeout { .. } | Self::Io { .. } | Self::TempFile(_)
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn error_display() {
-        let err = PlatformError::io("/test/path", std::io::Error::from_raw_os_error(2));
+        let err = PlatformError::io("/test/path", &std::io::Error::from_raw_os_error(2));
         assert!(err.to_string().contains("/test/path"));
     }
 

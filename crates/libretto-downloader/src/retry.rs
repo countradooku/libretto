@@ -63,7 +63,7 @@ where
 {
     let backoff = config.build_backoff();
 
-    let result = operation
+    operation
         .retry(backoff)
         .when(|e: &DownloadError| {
             let should_retry = e.is_retryable();
@@ -75,9 +75,7 @@ where
         .notify(|e: &DownloadError, dur: Duration| {
             warn!(error = %e, delay = ?dur, "operation failed, retrying");
         })
-        .await;
-
-    result
+        .await
 }
 
 /// Execute an operation with fallback to mirror URLs.
@@ -97,7 +95,7 @@ where
     Fut: Future<Output = Result<T>>,
 {
     let all_urls: Vec<&str> = std::iter::once(primary)
-        .chain(mirrors.iter().map(|s| s.as_str()))
+        .chain(mirrors.iter().map(std::string::String::as_str))
         .collect();
 
     let mut errors = Vec::new();
@@ -136,7 +134,7 @@ pub struct CircuitBreaker {
 impl CircuitBreaker {
     /// Create a new circuit breaker.
     #[must_use]
-    pub fn new(threshold: u32, reset_timeout: Duration) -> Self {
+    pub const fn new(threshold: u32, reset_timeout: Duration) -> Self {
         Self {
             failures: std::sync::atomic::AtomicU32::new(0),
             threshold,
@@ -155,10 +153,10 @@ impl CircuitBreaker {
 
         // Check if we should try again
         let last = self.last_failure.lock();
-        if let Some(instant) = *last {
-            if instant.elapsed() < self.reset_timeout {
-                return true;
-            }
+        if let Some(instant) = *last
+            && instant.elapsed() < self.reset_timeout
+        {
+            return true;
         }
 
         false

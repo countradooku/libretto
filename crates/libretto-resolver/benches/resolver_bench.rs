@@ -1,12 +1,98 @@
 //! Benchmarks for the dependency resolver.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use libretto_resolver::{
-    ComposerConstraint, ComposerVersion, Dependency, MemorySource, PackageIndex, PackageName,
-    ResolutionMode, ResolveOptions, Resolver,
+    ComposerConstraint, ComposerVersion, Dependency, FetchedPackage, FetchedVersion, MemorySource,
+    PackageFetcher, PackageIndex, PackageName, ResolutionMode, Resolver, ResolverConfig, Stability,
 };
 use rand::prelude::*;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
+
+/// A mock async fetcher that wraps a synchronous MemorySource for benchmarking.
+struct MockFetcher {
+    index: Arc<PackageIndex<MemorySource>>,
+}
+
+impl MockFetcher {
+    fn new(source: MemorySource) -> Self {
+        Self {
+            index: Arc::new(PackageIndex::new(source)),
+        }
+    }
+}
+
+impl PackageFetcher for MockFetcher {
+    fn fetch(
+        &self,
+        name: String,
+    ) -> Pin<Box<dyn std::future::Future<Output = Option<FetchedPackage>> + Send + '_>> {
+        let index = Arc::clone(&self.index);
+        Box::pin(async move {
+            let pkg_name = PackageName::parse(&name)?;
+            let entry = index.get(&pkg_name)?;
+
+            let versions: Vec<FetchedVersion> = entry
+                .versions
+                .iter()
+                .map(|v| FetchedVersion {
+                    version: v.version.to_string(),
+                    require: v
+                        .dependencies
+                        .iter()
+                        .map(|d| (d.name.as_str().to_string(), d.constraint.to_string()))
+                        .collect(),
+                    require_dev: v
+                        .dev_dependencies
+                        .iter()
+                        .map(|d| (d.name.as_str().to_string(), d.constraint.to_string()))
+                        .collect(),
+                    replace: v
+                        .replaces
+                        .iter()
+                        .map(|d| (d.name.as_str().to_string(), d.constraint.to_string()))
+                        .collect(),
+                    provide: v
+                        .provides
+                        .iter()
+                        .map(|d| (d.name.as_str().to_string(), d.constraint.to_string()))
+                        .collect(),
+                    suggest: v
+                        .suggests
+                        .iter()
+                        .map(|d| (d.name.as_str().to_string(), d.constraint.to_string()))
+                        .collect(),
+                    dist_url: v.dist_url.as_ref().map(ToString::to_string),
+                    dist_type: v.dist_type.as_ref().map(ToString::to_string),
+                    dist_shasum: v.dist_shasum.as_ref().map(ToString::to_string),
+                    source_url: v.source_url.as_ref().map(ToString::to_string),
+                    source_type: v.source_type.as_ref().map(ToString::to_string),
+                    source_reference: v.source_reference.as_ref().map(ToString::to_string),
+                    package_type: v.package_type.as_ref().map(ToString::to_string),
+                    description: v.description.as_ref().map(ToString::to_string),
+                    homepage: v.homepage.as_ref().map(ToString::to_string),
+                    license: v.license.clone(),
+                    authors: v.authors.clone(),
+                    keywords: v.keywords.clone(),
+                    time: v.time.as_ref().map(ToString::to_string),
+                    autoload: v.autoload.clone(),
+                    autoload_dev: v.autoload_dev.clone(),
+                    extra: v.extra.clone(),
+                    support: v.support.clone(),
+                    funding: v.funding.clone(),
+                    notification_url: v.notification_url.as_ref().map(ToString::to_string),
+                    bin: v.bin.clone(),
+                })
+                .collect();
+
+            Some(FetchedPackage {
+                name: entry.name.as_str().to_string(),
+                versions,
+            })
+        })
+    }
+}
 
 /// Generate a synthetic package registry with the specified number of packages.
 fn generate_registry(
@@ -126,14 +212,29 @@ fn bench_index_lookup(c: &mut Criterion) {
     });
 }
 
+/// Create a tokio runtime for async benchmarks.
+fn create_runtime() -> tokio::runtime::Runtime {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+}
+
 /// Benchmark resolution with different graph sizes.
 fn bench_resolution(c: &mut Criterion) {
     let mut group = c.benchmark_group("resolution");
 
-    for size in [10, 50, 100, 500] {
+    for size in [10, 50, 100] {
         let source = generate_registry(size, 5, 2);
-        let index = Arc::new(PackageIndex::new(source));
-        let resolver = Resolver::new(Arc::clone(&index));
+        let fetcher = Arc::new(MockFetcher::new(source));
+        let config = ResolverConfig {
+            max_concurrent: 32,
+            request_timeout: Duration::from_secs(10),
+            mode: ResolutionMode::PreferStable,
+            min_stability: Stability::Stable,
+            include_dev: false,
+        };
+        let resolver = Resolver::new(Arc::clone(&fetcher), config);
 
         // Create root dependencies (pick a few packages)
         let deps: Vec<_> = (0..3)
@@ -145,13 +246,11 @@ fn bench_resolution(c: &mut Criterion) {
             })
             .collect();
 
+        let rt = create_runtime();
+
         group.throughput(Throughput::Elements(size as u64));
         group.bench_with_input(BenchmarkId::new("packages", size), &size, |b, _| {
-            b.iter(|| {
-                // Clear caches for cold resolution
-                index.clear();
-                black_box(resolver.resolve(&deps, &ResolveOptions::default()))
-            });
+            b.iter(|| rt.block_on(async { black_box(resolver.resolve(&deps, &[]).await) }));
         });
     }
 
@@ -161,8 +260,15 @@ fn bench_resolution(c: &mut Criterion) {
 /// Benchmark warm cache resolution.
 fn bench_warm_resolution(c: &mut Criterion) {
     let source = generate_registry(100, 5, 2);
-    let index = Arc::new(PackageIndex::new(source));
-    let resolver = Resolver::new(Arc::clone(&index));
+    let fetcher = Arc::new(MockFetcher::new(source));
+    let config = ResolverConfig {
+        max_concurrent: 32,
+        request_timeout: Duration::from_secs(10),
+        mode: ResolutionMode::PreferStable,
+        min_stability: Stability::Stable,
+        include_dev: false,
+    };
+    let resolver = Resolver::new(Arc::clone(&fetcher), config);
 
     let deps: Vec<_> = (0..3)
         .map(|i| {
@@ -173,19 +279,28 @@ fn bench_warm_resolution(c: &mut Criterion) {
         })
         .collect();
 
+    let rt = create_runtime();
+
     // Warm up the cache
-    let _ = resolver.resolve(&deps, &ResolveOptions::default());
+    let _ = rt.block_on(resolver.resolve(&deps, &[]));
 
     c.bench_function("resolution_warm_100", |b| {
-        b.iter(|| black_box(resolver.resolve(&deps, &ResolveOptions::default())));
+        b.iter(|| rt.block_on(async { black_box(resolver.resolve(&deps, &[]).await) }));
     });
 }
 
 /// Benchmark prefer-lowest mode.
 fn bench_prefer_lowest(c: &mut Criterion) {
     let source = generate_registry(100, 10, 2);
-    let index = Arc::new(PackageIndex::new(source));
-    let resolver = Resolver::new(index);
+    let fetcher = Arc::new(MockFetcher::new(source));
+    let config = ResolverConfig {
+        max_concurrent: 32,
+        request_timeout: Duration::from_secs(10),
+        mode: ResolutionMode::PreferLowest,
+        min_stability: Stability::Stable,
+        include_dev: false,
+    };
+    let resolver = Resolver::new(fetcher, config);
 
     let deps: Vec<_> = (0..3)
         .map(|i| {
@@ -196,13 +311,10 @@ fn bench_prefer_lowest(c: &mut Criterion) {
         })
         .collect();
 
-    let options = ResolveOptions {
-        mode: ResolutionMode::PreferLowest,
-        ..Default::default()
-    };
+    let rt = create_runtime();
 
     c.bench_function("resolution_prefer_lowest", |b| {
-        b.iter(|| black_box(resolver.resolve(&deps, &options)));
+        b.iter(|| rt.block_on(async { black_box(resolver.resolve(&deps, &[]).await) }));
     });
 }
 

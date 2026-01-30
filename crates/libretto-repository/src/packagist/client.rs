@@ -3,25 +3,25 @@
 //! Supports:
 //! - Metadata-url pattern for lazy package loading
 //! - Provider-includes for incremental metadata
-//! - ETags and If-Modified-Since for caching
+//! - `ETags` and If-Modified-Since for caching
 //! - Private Packagist instances
 
 use crate::cache::{
-    RepositoryCache, DEFAULT_ADVISORY_TTL, DEFAULT_METADATA_TTL, DEFAULT_SEARCH_TTL,
+    DEFAULT_ADVISORY_TTL, DEFAULT_METADATA_TTL, DEFAULT_SEARCH_TTL, RepositoryCache,
 };
 use crate::client::{HttpClient, HttpClientConfig};
 use crate::error::{RepositoryError, Result};
 use crate::packagist::types::{
-    expand_minified_versions, ChangesResponse, PackageMetadataResponse, PackageVersionJson,
-    PackagesJson, PopularPackagesResponse, SearchResponse, SearchResult,
-    SecurityAdvisoriesResponse, SecurityAdvisory, StatisticsResponse,
+    ChangesResponse, PackageMetadataResponse, PackageVersionJson, PackagesJson,
+    PopularPackagesResponse, SearchResponse, SearchResult, SecurityAdvisoriesResponse,
+    SecurityAdvisory, StatisticsResponse, expand_minified_versions,
 };
 use dashmap::DashMap;
 use libretto_core::{Package, PackageId};
 use parking_lot::RwLock;
 use serde::Serialize;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 use url::Url;
@@ -67,6 +67,7 @@ impl Default for PackagistConfig {
 
 impl PackagistConfig {
     /// Create configuration for a private Packagist instance.
+    #[must_use]
     pub fn private(repo_url: Url, api_url: Url, token: String) -> Self {
         Self {
             repo_url,
@@ -215,13 +216,13 @@ impl PackagistClient {
 
     /// Get the repository URL.
     #[must_use]
-    pub fn repo_url(&self) -> &Url {
+    pub const fn repo_url(&self) -> &Url {
         &self.config.repo_url
     }
 
     /// Get the API URL.
     #[must_use]
-    pub fn api_url(&self) -> &Url {
+    pub const fn api_url(&self) -> &Url {
         &self.config.api_url
     }
 
@@ -243,10 +244,10 @@ impl PackagistClient {
     /// Fetch the root packages.json to get metadata URL pattern.
     async fn fetch_root(&self) -> Result<()> {
         // Check if we've fetched recently (within 5 minutes)
-        if let Some(last_fetch) = *self.last_root_fetch.read() {
-            if last_fetch.elapsed() < Duration::from_secs(300) {
-                return Ok(());
-            }
+        if let Some(last_fetch) = *self.last_root_fetch.read()
+            && last_fetch.elapsed() < Duration::from_secs(300)
+        {
+            return Ok(());
         }
 
         let url = self.config.repo_url.join("packages.json").map_err(|e| {
@@ -259,12 +260,12 @@ impl PackagistClient {
         let cache_key = url.to_string();
 
         // Try cache first
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(packages_json) = sonic_rs::from_slice::<PackagesJson>(&data) {
-                self.update_root_config(&packages_json);
-                self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(());
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(packages_json) = sonic_rs::from_slice::<PackagesJson>(&data)
+        {
+            self.update_root_config(&packages_json);
+            self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
+            return Ok(());
         }
 
         // Fetch from network
@@ -317,18 +318,18 @@ impl PackagistClient {
         self.fetch_root().await?;
 
         let package_name = package_id.full_name();
-        let cache_key = format!("pkg:{}", package_name);
+        let cache_key = format!("pkg:{package_name}");
 
         // Check cache
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(versions) = sonic_rs::from_slice::<Vec<PackageVersionJson>>(&data) {
-                self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
-                let packages: Vec<Package> = versions
-                    .iter()
-                    .filter_map(|v| v.to_package(package_id))
-                    .collect();
-                return Ok(packages);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(versions) = sonic_rs::from_slice::<Vec<PackageVersionJson>>(&data)
+        {
+            self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
+            let packages: Vec<Package> = versions
+                .iter()
+                .filter_map(|v| v.to_package(package_id))
+                .collect();
+            return Ok(packages);
         }
 
         // Fetch tagged releases
@@ -424,14 +425,14 @@ impl PackagistClient {
         if response.was_cached {
             self.cache.record_conditional_hit();
             // Return cached data
-            if let Some(data) = self.cache.get_metadata(&cache_key) {
-                if let Ok(pkg_response) = sonic_rs::from_slice::<PackageMetadataResponse>(&data) {
-                    return Ok(pkg_response
-                        .packages
-                        .get(&package_name)
-                        .cloned()
-                        .unwrap_or_default());
-                }
+            if let Some(data) = self.cache.get_metadata(&cache_key)
+                && let Ok(pkg_response) = sonic_rs::from_slice::<PackageMetadataResponse>(&data)
+            {
+                return Ok(pkg_response
+                    .packages
+                    .get(&package_name)
+                    .cloned()
+                    .unwrap_or_default());
             }
         }
 
@@ -533,11 +534,11 @@ impl PackagistClient {
         let cache_key = format!("search:{query}:{per_page}");
 
         // Check cache
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(results) = sonic_rs::from_slice::<Vec<SearchResult>>(&data) {
-                self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(results);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(results) = sonic_rs::from_slice::<Vec<SearchResult>>(&data)
+        {
+            self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
+            return Ok(results);
         }
 
         let response = self.http.get(&url).await?;
@@ -719,11 +720,11 @@ impl PackagistClient {
         let cache_key = format!("advisories:{}", packages.join(","));
 
         // Check cache
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(advisories) = sonic_rs::from_slice::<Vec<SecurityAdvisory>>(&data) {
-                self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(advisories);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(advisories) = sonic_rs::from_slice::<Vec<SecurityAdvisory>>(&data)
+        {
+            self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
+            return Ok(advisories);
         }
 
         let mut url = self
@@ -778,7 +779,7 @@ impl PackagistClient {
     /// Get updates since a timestamp.
     ///
     /// # Arguments
-    /// * `since` - Timestamp to get changes since (10000 * unix_timestamp).
+    /// * `since` - Timestamp to get changes since (10000 * `unix_timestamp`).
     ///
     /// # Errors
     /// Returns error if changes cannot be fetched.

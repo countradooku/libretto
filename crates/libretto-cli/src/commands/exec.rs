@@ -71,7 +71,7 @@ fn find_binary(vendor_bin: &PathBuf, name: &str) -> Result<PathBuf> {
     // On Unix, try with .phar extension
     #[cfg(unix)]
     {
-        let phar = vendor_bin.join(format!("{}.phar", name));
+        let phar = vendor_bin.join(format!("{name}.phar"));
         if phar.exists() {
             return Ok(phar);
         }
@@ -79,7 +79,7 @@ fn find_binary(vendor_bin: &PathBuf, name: &str) -> Result<PathBuf> {
 
     // List available binaries in error message
     let available: Vec<String> = std::fs::read_dir(vendor_bin)?
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
         .filter_map(|e| {
             let name = e.file_name().to_string_lossy().to_string();
             // Skip bat files on Unix, show them on Windows
@@ -150,7 +150,7 @@ fn list_binaries() -> Result<()> {
     table.print();
 
     println!();
-    info(&format!("Run with: libretto exec <binary> [args...]"));
+    info("Run with: libretto exec <binary> [args...]");
 
     Ok(())
 }

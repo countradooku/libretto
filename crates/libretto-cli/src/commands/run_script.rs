@@ -59,9 +59,9 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
     // Check if script exists
     let script = scripts
         .and_then(|s| s.get(script_name))
-        .context(format!("Script '{}' not found", script_name))?;
+        .context(format!("Script '{script_name}' not found"))?;
 
-    header(&format!("Running script: {}", script_name));
+    header(&format!("Running script: {script_name}"));
 
     // Collect commands to run
     let commands: Vec<String> = if let Some(cmd) = script.as_str() {
@@ -71,7 +71,7 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
             .filter_map(|v| v.as_str().map(String::from))
             .collect()
     } else {
-        anyhow::bail!("Invalid script format for '{}'", script_name)
+        anyhow::bail!("Invalid script format for '{script_name}'")
     };
 
     // Set up environment
@@ -117,7 +117,7 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
                 no_dev: args.no_dev,
             };
             if let Err(e) = Box::pin(run(ref_args)).await {
-                error(&format!("Referenced script '{}' failed: {}", ref_script, e));
+                error(&format!("Referenced script '{ref_script}' failed: {e}"));
                 failed = true;
                 break;
             }
@@ -152,7 +152,7 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
             format!("{} {}", actual_cmd, args.args.join(" "))
         };
 
-        info(&format!("> {}", full_cmd));
+        info(&format!("> {full_cmd}"));
 
         // Execute command
         let shell = if cfg!(windows) { "cmd" } else { "sh" };
@@ -163,7 +163,7 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
             .arg(&full_cmd)
             .envs(&env)
             .status()
-            .context(format!("Failed to execute: {}", full_cmd))?;
+            .context(format!("Failed to execute: {full_cmd}"))?;
 
         if !status.success() {
             error(&format!(
@@ -178,12 +178,11 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
     }
 
     if failed {
-        anyhow::bail!("Script '{}' failed", script_name);
+        anyhow::bail!("Script '{script_name}' failed");
     }
 
     success(&format!(
-        "Script '{}' completed ({} command(s) executed)",
-        script_name, success_count
+        "Script '{script_name}' completed ({success_count} command(s) executed)"
     ));
 
     Ok(())

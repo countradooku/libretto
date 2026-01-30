@@ -74,7 +74,7 @@ impl PhpParser {
             .expect("Failed to set PHP language");
 
         // Query to find namespace, class, interface, trait, and enum declarations
-        let query_source = r#"
+        let query_source = r"
             (namespace_definition
                 name: (namespace_name) @namespace)
 
@@ -89,7 +89,7 @@ impl PhpParser {
 
             (enum_declaration
                 name: (name) @enum.name) @enum
-        "#;
+        ";
 
         let query =
             Query::new(&language.into(), query_source).expect("Failed to create tree-sitter query");
@@ -170,7 +170,7 @@ impl PhpParser {
                     if is_name {
                         let name = text.to_string();
                         let fqcn = match &current_namespace {
-                            Some(ns) => format!("{}\\{}", ns, name),
+                            Some(ns) => format!("{ns}\\{name}"),
                             None => name.clone(),
                         };
 

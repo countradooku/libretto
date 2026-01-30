@@ -1,9 +1,9 @@
 //! GitHub API client for fetching repository metadata.
 
-use crate::cache::{RepositoryCache, DEFAULT_METADATA_TTL};
+use crate::cache::{DEFAULT_METADATA_TTL, RepositoryCache};
 use crate::client::{AuthType, HttpClient, HttpClientConfig};
 use crate::error::{RepositoryError, Result};
-use crate::providers::{parse_vcs_url, VcsProvider};
+use crate::providers::{VcsProvider, parse_vcs_url};
 use serde::Deserialize;
 use std::future::Future;
 use std::pin::Pin;
@@ -41,6 +41,7 @@ impl Default for GitHubConfig {
 
 impl GitHubConfig {
     /// Create configuration for GitHub Enterprise.
+    #[must_use]
     pub fn enterprise(api_url: Url, token: String) -> Self {
         Self {
             api_url,
@@ -50,6 +51,7 @@ impl GitHubConfig {
     }
 
     /// Create configuration with token.
+    #[must_use]
     pub fn with_token(token: String) -> Self {
         Self {
             token: Some(token),
@@ -103,10 +105,10 @@ impl GitHubClient {
                 message: format!("HTTP client creation failed: {e}"),
             })?;
 
-        if let Some(ref token) = config.token {
-            if let Some(host) = config.api_url.host_str() {
-                http.set_auth(host, AuthType::Bearer(token.clone()));
-            }
+        if let Some(ref token) = config.token
+            && let Some(host) = config.api_url.host_str()
+        {
+            http.set_auth(host, AuthType::Bearer(token.clone()));
         }
 
         Ok(Self {
@@ -146,11 +148,11 @@ impl GitHubClient {
         let cache_key = format!("github:{owner}/{repo}/{path}@{reference}");
 
         // Check cache
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(content) = String::from_utf8(data.to_vec()) {
-                debug!(owner, repo, path, reference, "cache hit");
-                return Ok(content);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(content) = String::from_utf8(data.to_vec())
+        {
+            debug!(owner, repo, path, reference, "cache hit");
+            return Ok(content);
         }
 
         let mut url = url;
@@ -193,10 +195,10 @@ impl GitHubClient {
         let url = self.api_url(owner, repo, "tags")?;
         let cache_key = format!("github:{owner}/{repo}/tags");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(tags) = sonic_rs::from_slice::<Vec<GitHubTag>>(&data) {
-                return Ok(tags);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(tags) = sonic_rs::from_slice::<Vec<GitHubTag>>(&data)
+        {
+            return Ok(tags);
         }
 
         let response = self.http.get(&url).await?;
@@ -221,10 +223,10 @@ impl GitHubClient {
         let url = self.api_url(owner, repo, "branches")?;
         let cache_key = format!("github:{owner}/{repo}/branches");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(branches) = sonic_rs::from_slice::<Vec<GitHubBranch>>(&data) {
-                return Ok(branches);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(branches) = sonic_rs::from_slice::<Vec<GitHubBranch>>(&data)
+        {
+            return Ok(branches);
         }
 
         let response = self.http.get(&url).await?;
@@ -258,10 +260,10 @@ impl GitHubClient {
 
         let cache_key = format!("github:{owner}/{repo}/info");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(repo_info) = sonic_rs::from_slice::<GitHubRepository>(&data) {
-                return Ok(repo_info);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(repo_info) = sonic_rs::from_slice::<GitHubRepository>(&data)
+        {
+            return Ok(repo_info);
         }
 
         let response = self.http.get(&url).await?;
@@ -286,10 +288,10 @@ impl GitHubClient {
         let url = self.api_url(owner, repo, "releases")?;
         let cache_key = format!("github:{owner}/{repo}/releases");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(releases) = sonic_rs::from_slice::<Vec<GitHubRelease>>(&data) {
-                return Ok(releases);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(releases) = sonic_rs::from_slice::<Vec<GitHubRelease>>(&data)
+        {
+            return Ok(releases);
         }
 
         let response = self.http.get(&url).await?;
@@ -333,14 +335,13 @@ impl GitHubClient {
 }
 
 impl VcsProvider for GitHubClient {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "GitHub"
     }
 
     fn can_handle(&self, url: &Url) -> bool {
         url.host_str()
-            .map(|h| h.contains("github.com") || h.contains("github."))
-            .unwrap_or(false)
+            .is_some_and(|h| h.contains("github.com") || h.contains("github."))
     }
 
     fn fetch_composer_json<'a>(

@@ -106,42 +106,42 @@ impl CacheConfigBuilder {
 
     /// Set L1 (memory) cache size limit.
     #[must_use]
-    pub fn l1_size_limit(mut self, limit: u64) -> Self {
+    pub const fn l1_size_limit(mut self, limit: u64) -> Self {
         self.config.l1_size_limit = limit;
         self
     }
 
     /// Set L2 (disk) cache size limit.
     #[must_use]
-    pub fn l2_size_limit(mut self, limit: u64) -> Self {
+    pub const fn l2_size_limit(mut self, limit: u64) -> Self {
         self.config.l2_size_limit = limit;
         self
     }
 
     /// Set default TTL for cached entries.
     #[must_use]
-    pub fn default_ttl(mut self, ttl: Duration) -> Self {
+    pub const fn default_ttl(mut self, ttl: Duration) -> Self {
         self.config.default_ttl = ttl;
         self
     }
 
     /// Set TTL for package metadata.
     #[must_use]
-    pub fn metadata_ttl(mut self, ttl: Duration) -> Self {
+    pub const fn metadata_ttl(mut self, ttl: Duration) -> Self {
         self.config.metadata_ttl = ttl;
         self
     }
 
     /// Set TTL for repository data.
     #[must_use]
-    pub fn repository_ttl(mut self, ttl: Duration) -> Self {
+    pub const fn repository_ttl(mut self, ttl: Duration) -> Self {
         self.config.repository_ttl = ttl;
         self
     }
 
     /// Set TTL for resolved dependency graphs.
     #[must_use]
-    pub fn graph_ttl(mut self, ttl: Duration) -> Self {
+    pub const fn graph_ttl(mut self, ttl: Duration) -> Self {
         self.config.graph_ttl = ttl;
         self
     }
@@ -155,56 +155,56 @@ impl CacheConfigBuilder {
 
     /// Enable or disable compression.
     #[must_use]
-    pub fn compression_enabled(mut self, enabled: bool) -> Self {
+    pub const fn compression_enabled(mut self, enabled: bool) -> Self {
         self.config.compression_enabled = enabled;
         self
     }
 
     /// Enable or disable bloom filter.
     #[must_use]
-    pub fn bloom_filter_enabled(mut self, enabled: bool) -> Self {
+    pub const fn bloom_filter_enabled(mut self, enabled: bool) -> Self {
         self.config.bloom_filter_enabled = enabled;
         self
     }
 
     /// Set bloom filter capacity.
     #[must_use]
-    pub fn bloom_filter_capacity(mut self, capacity: usize) -> Self {
+    pub const fn bloom_filter_capacity(mut self, capacity: usize) -> Self {
         self.config.bloom_filter_capacity = capacity;
         self
     }
 
     /// Enable or disable cache warming on startup.
     #[must_use]
-    pub fn warm_on_startup(mut self, enabled: bool) -> Self {
+    pub const fn warm_on_startup(mut self, enabled: bool) -> Self {
         self.config.warm_on_startup = enabled;
         self
     }
 
     /// Set maximum entries to warm on startup.
     #[must_use]
-    pub fn max_warm_entries(mut self, max: usize) -> Self {
+    pub const fn max_warm_entries(mut self, max: usize) -> Self {
         self.config.max_warm_entries = max;
         self
     }
 
     /// Set garbage collection interval.
     #[must_use]
-    pub fn gc_interval(mut self, interval: Duration) -> Self {
+    pub const fn gc_interval(mut self, interval: Duration) -> Self {
         self.config.gc_interval = interval;
         self
     }
 
     /// Enable or disable statistics tracking.
     #[must_use]
-    pub fn stats_enabled(mut self, enabled: bool) -> Self {
+    pub const fn stats_enabled(mut self, enabled: bool) -> Self {
         self.config.stats_enabled = enabled;
         self
     }
 
     /// Set memory map threshold.
     #[must_use]
-    pub fn mmap_threshold(mut self, threshold: u64) -> Self {
+    pub const fn mmap_threshold(mut self, threshold: u64) -> Self {
         self.config.mmap_threshold = threshold;
         self
     }
@@ -236,7 +236,7 @@ pub enum CacheEntryType {
 impl CacheEntryType {
     /// Get TTL for this entry type from config.
     #[must_use]
-    pub fn ttl(self, config: &CacheConfig) -> Duration {
+    pub const fn ttl(self, config: &CacheConfig) -> Duration {
         match self {
             Self::Package => config.default_ttl,
             Self::Metadata => config.metadata_ttl,

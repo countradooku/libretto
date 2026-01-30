@@ -1,0 +1,119 @@
+[package]
+name = "libretto-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Comprehensive benchmark suite for libretto package manager"
+publish = false
+
+[dependencies]
+# Internal crates - all needed for benchmarking
+libretto-core = { workspace = true }
+libretto-platform = { workspace = true }
+libretto-cache = { workspace = true }
+libretto-resolver = { workspace = true }
+libretto-downloader = { workspace = true }
+libretto-archive = { workspace = true }
+libretto-vcs = { workspace = true }
+libretto-autoloader = { workspace = true }
+libretto-lockfile = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Parallelism
+rayon = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+sonic-rs = { workspace = true }
+
+# Random data generation for synthetic benchmarks
+rand = "0.9"
+
+# Filesystem utilities
+tempfile = { workspace = true }
+walkdir = { workspace = true }
+
+# Time measurement
+chrono = { workspace = true }
+
+# Hashing for benchmarks
+blake3 = { workspace = true }
+sha2 = { workspace = true }
+
+# Fast hashmaps
+ahash = { workspace = true }
+
+# String search
+memchr = { workspace = true }
+
+# Hex encoding
+hex = { workspace = true }
+
+# Compression
+zstd = "0.13"
+
+# Semver
+semver = { workspace = true }
+
+# Tar archives
+tar = { workspace = true }
+flate2 = { workspace = true }
+zip = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Optional heap profiling
+dhat = { version = "0.3", optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[features]
+default = []
+dhat-heap = ["dhat"]
+# Feature to enable Composer comparison (requires PHP + Composer installed)
+composer-comparison = []
+
+[[bench]]
+name = "dependency_resolution"
+harness = false
+
+[[bench]]
+name = "package_operations"
+harness = false
+
+[[bench]]
+name = "cache_operations"
+harness = false
+
+[[bench]]
+name = "autoloader_generation"
+harness = false
+
+[[bench]]
+name = "lockfile_operations"
+harness = false
+
+[[bench]]
+name = "vcs_operations"
+harness = false
+
+[[bench]]
+name = "realworld_scenarios"
+harness = false
+
+[[bench]]
+name = "memory_benchmarks"
+harness = false
+
+[[bench]]
+name = "simd_benchmarks"
+harness = false
+
+[lints]
+workspace = true

@@ -68,6 +68,7 @@ pub trait VcsProvider: Send + Sync {
 }
 
 /// Parse a VCS URL to extract owner and repository name.
+#[must_use]
 pub fn parse_vcs_url(url: &Url) -> Option<(String, String)> {
     let path = url.path().trim_start_matches('/').trim_end_matches(".git");
     let parts: Vec<&str> = path.split('/').collect();

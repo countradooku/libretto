@@ -111,7 +111,7 @@ pub struct ComposerConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process_timeout: Option<u32>,
 
-    /// Use PHP include_path for autoloading.
+    /// Use PHP `include_path` for autoloading.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub use_include_path: Option<bool>,
 
@@ -219,7 +219,7 @@ pub struct ComposerConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub classmap_authoritative: Option<bool>,
 
-    /// Enable APCu cache for autoloader.
+    /// Enable `APCu` cache for autoloader.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub apcu_autoloader: Option<bool>,
 
@@ -863,7 +863,7 @@ pub enum AbandonedStatus {
 pub struct ResolvedConfig {
     /// Process timeout in seconds.
     pub process_timeout: u32,
-    /// Use PHP include_path.
+    /// Use PHP `include_path`.
     pub use_include_path: bool,
     /// Preferred installation method.
     pub preferred_install: PreferredInstallConfig,
@@ -903,7 +903,7 @@ pub struct ResolvedConfig {
     pub sort_packages: bool,
     /// Authoritative classmap.
     pub classmap_authoritative: bool,
-    /// APCu autoloader.
+    /// `APCu` autoloader.
     pub apcu_autoloader: bool,
     /// GitHub domains.
     pub github_domains: Vec<String>,
@@ -937,7 +937,7 @@ pub struct ResolvedConfig {
     pub allow_plugins: AllowPlugins,
     /// Platform overrides.
     pub platform: BTreeMap<String, PlatformValue>,
-    /// Home directory (COMPOSER_HOME).
+    /// Home directory (`COMPOSER_HOME`).
     pub home_dir: PathBuf,
     /// Project root directory.
     pub project_dir: PathBuf,

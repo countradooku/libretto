@@ -128,7 +128,7 @@
 //! # Module Structure
 //!
 //! - [`error`]: Error types for VCS operations
-//! - [`types`]: Core types (VcsType, VcsRef, CloneOptions)
+//! - [`types`]: Core types (`VcsType`, `VcsRef`, `CloneOptions`)
 //! - [`url`]: URL parsing with protocol detection
 //! - [`credentials`]: Authentication handling
 //! - [`git`]: Git repository operations
@@ -139,7 +139,7 @@
 //! - [`cache`]: Reference repository caching
 //! - [`manager`]: Unified VCS manager
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod cache;

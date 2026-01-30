@@ -61,7 +61,7 @@ pub async fn run(args: ValidateArgs) -> Result<()> {
             }
 
             // Validate package names
-            for (name, _version) in &composer.require {
+            for name in composer.require.keys() {
                 if !name.contains('/') && !is_platform_requirement(name) {
                     errors.push(format!("Invalid package name: {name}"));
                 }

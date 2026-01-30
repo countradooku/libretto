@@ -12,10 +12,11 @@ use std::arch::x86_64::{
 /// Returns true if the two 32-byte slices are equal.
 #[inline]
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[must_use]
 pub fn compare_hash_simd(a: &[u8; 32], b: &[u8; 32]) -> bool {
     unsafe {
-        let va = _mm256_loadu_si256(a.as_ptr() as *const __m256i);
-        let vb = _mm256_loadu_si256(b.as_ptr() as *const __m256i);
+        let va = _mm256_loadu_si256(a.as_ptr().cast::<__m256i>());
+        let vb = _mm256_loadu_si256(b.as_ptr().cast::<__m256i>());
         let cmp = _mm256_cmpeq_epi8(va, vb);
         let mask = _mm256_movemask_epi8(cmp);
         mask == -1i32 // All 32 bytes equal
@@ -33,6 +34,7 @@ pub fn compare_hash_simd(a: &[u8; 32], b: &[u8; 32]) -> bool {
 /// Returns the index of the first occurrence, or None if not found.
 #[inline]
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[must_use]
 pub fn find_byte_simd(haystack: &[u8], needle: u8) -> Option<usize> {
     if haystack.is_empty() {
         return None;
@@ -44,7 +46,7 @@ pub fn find_byte_simd(haystack: &[u8], needle: u8) -> Option<usize> {
 
         for i in 0..chunks {
             let offset = i * 32;
-            let chunk = _mm256_loadu_si256(haystack.as_ptr().add(offset) as *const __m256i);
+            let chunk = _mm256_loadu_si256(haystack.as_ptr().add(offset).cast::<__m256i>());
             let cmp = _mm256_cmpeq_epi8(chunk, needle_vec);
             let mask = _mm256_movemask_epi8(cmp) as u32;
             if mask != 0 {
@@ -74,6 +76,7 @@ pub fn find_byte_simd(haystack: &[u8], needle: u8) -> Option<usize> {
 /// SIMD-accelerated prefix matching for namespace lookups.
 /// Checks if `haystack` starts with `prefix`.
 #[inline]
+#[must_use]
 pub fn starts_with_simd(haystack: &[u8], prefix: &[u8]) -> bool {
     if prefix.len() > haystack.len() {
         return false;
@@ -99,8 +102,8 @@ fn starts_with_simd_avx2(haystack: &[u8], prefix: &[u8]) -> bool {
 
         for i in 0..chunks {
             let offset = i * 32;
-            let h = _mm256_loadu_si256(haystack.as_ptr().add(offset) as *const __m256i);
-            let p = _mm256_loadu_si256(prefix.as_ptr().add(offset) as *const __m256i);
+            let h = _mm256_loadu_si256(haystack.as_ptr().add(offset).cast::<__m256i>());
+            let p = _mm256_loadu_si256(prefix.as_ptr().add(offset).cast::<__m256i>());
             let cmp = _mm256_cmpeq_epi8(h, p);
             let mask = _mm256_movemask_epi8(cmp);
             if mask != -1i32 {
@@ -117,6 +120,7 @@ fn starts_with_simd_avx2(haystack: &[u8], prefix: &[u8]) -> bool {
 /// Batch compare multiple hashes against a target.
 /// Returns indices of matching hashes.
 #[inline]
+#[must_use]
 pub fn find_matching_hashes(hashes: &[[u8; 32]], target: &[u8; 32]) -> Vec<usize> {
     hashes
         .iter()
@@ -129,7 +133,8 @@ pub fn find_matching_hashes(hashes: &[[u8; 32]], target: &[u8; 32]) -> Vec<usize
 /// SIMD-accelerated counting of set bits (popcount) for bloom filter.
 #[inline]
 #[cfg(all(target_arch = "x86_64", target_feature = "popcnt"))]
-pub fn popcount_u64(x: u64) -> u32 {
+#[must_use]
+pub const fn popcount_u64(x: u64) -> u32 {
     x.count_ones()
 }
 
@@ -142,6 +147,7 @@ pub fn popcount_u64(x: u64) -> u32 {
 
 /// Batch popcount for bloom filter bit arrays.
 #[inline]
+#[must_use]
 pub fn popcount_slice(data: &[u64]) -> usize {
     data.iter().map(|&x| popcount_u64(x) as usize).sum()
 }
@@ -159,10 +165,10 @@ pub fn xor_slices_simd(a: &mut [u64], b: &[u64]) {
     unsafe {
         for i in 0..chunks {
             let offset = i * 4;
-            let va = _mm256_loadu_si256(a.as_ptr().add(offset) as *const __m256i);
-            let vb = _mm256_loadu_si256(b.as_ptr().add(offset) as *const __m256i);
+            let va = _mm256_loadu_si256(a.as_ptr().add(offset).cast::<__m256i>());
+            let vb = _mm256_loadu_si256(b.as_ptr().add(offset).cast::<__m256i>());
             let result = _mm256_xor_si256(va, vb);
-            _mm256_storeu_si256(a.as_mut_ptr().add(offset) as *mut __m256i, result);
+            _mm256_storeu_si256(a.as_mut_ptr().add(offset).cast::<__m256i>(), result);
         }
 
         // Handle remaining elements
@@ -196,10 +202,10 @@ pub fn or_slices_simd(a: &mut [u64], b: &[u64]) {
     unsafe {
         for i in 0..chunks {
             let offset = i * 4;
-            let va = _mm256_loadu_si256(a.as_ptr().add(offset) as *const __m256i);
-            let vb = _mm256_loadu_si256(b.as_ptr().add(offset) as *const __m256i);
+            let va = _mm256_loadu_si256(a.as_ptr().add(offset).cast::<__m256i>());
+            let vb = _mm256_loadu_si256(b.as_ptr().add(offset).cast::<__m256i>());
             let result = _mm256_or_si256(va, vb);
-            _mm256_storeu_si256(a.as_mut_ptr().add(offset) as *mut __m256i, result);
+            _mm256_storeu_si256(a.as_mut_ptr().add(offset).cast::<__m256i>(), result);
         }
 
         let remaining_start = chunks * 4;

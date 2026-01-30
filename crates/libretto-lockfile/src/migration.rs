@@ -83,7 +83,7 @@ pub struct MigrationResult {
 impl MigrationResult {
     /// Check if any changes were made.
     #[must_use]
-    pub fn has_changes(&self) -> bool {
+    pub const fn has_changes(&self) -> bool {
         !self.changes.is_empty()
     }
 
@@ -128,22 +128,22 @@ impl std::fmt::Display for MigrationChange {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AddedField { field, value } => {
-                write!(f, "Added field '{}' with value '{}'", field, value)
+                write!(f, "Added field '{field}' with value '{value}'")
             }
             Self::RenamedField { old, new } => {
-                write!(f, "Renamed field '{}' to '{}'", old, new)
+                write!(f, "Renamed field '{old}' to '{new}'")
             }
             Self::UpdatedFormat { field, reason } => {
-                write!(f, "Updated format of '{}': {}", field, reason)
+                write!(f, "Updated format of '{field}': {reason}")
             }
             Self::RemovedField { field } => {
-                write!(f, "Removed deprecated field '{}'", field)
+                write!(f, "Removed deprecated field '{field}'")
             }
             Self::NormalizedValue { field, from, to } => {
-                write!(f, "Normalized '{}': '{}' -> '{}'", field, from, to)
+                write!(f, "Normalized '{field}': '{from}' -> '{to}'")
             }
             Self::AddedDefault { field, value } => {
-                write!(f, "Added default for '{}': '{}'", field, value)
+                write!(f, "Added default for '{field}': '{value}'")
             }
         }
     }
@@ -159,14 +159,14 @@ pub struct Migrator {
 impl Migrator {
     /// Create a new migrator targeting the current version.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             target_version: SchemaVersion::CURRENT,
         }
     }
 
     /// Set target version.
-    pub fn target_version(&mut self, version: SchemaVersion) -> &mut Self {
+    pub const fn target_version(&mut self, version: SchemaVersion) -> &mut Self {
         self.target_version = version;
         self
     }
@@ -344,7 +344,7 @@ impl Migrator {
     pub fn migrate_from_value(&self, value: Value) -> Result<MigrationResult> {
         // Try to parse as ComposerLock first
         let lock: ComposerLock = sonic_rs::from_value(&value)
-            .map_err(|e| LockfileError::Migration(format!("Failed to parse lock file: {}", e)))?;
+            .map_err(|e| LockfileError::Migration(format!("Failed to parse lock file: {e}")))?;
 
         self.migrate(lock)
     }
@@ -369,6 +369,7 @@ fn normalize_stability(stability: &str) -> String {
 }
 
 /// Detect lock file version from JSON.
+#[must_use]
 pub fn detect_version(json: &str) -> Option<SchemaVersion> {
     // Quick parse to get plugin-api-version
     let value: Value = sonic_rs::from_str(json).ok()?;
@@ -377,10 +378,9 @@ pub fn detect_version(json: &str) -> Option<SchemaVersion> {
 }
 
 /// Check if migration is needed without fully parsing.
+#[must_use]
 pub fn needs_migration(json: &str) -> bool {
-    detect_version(json)
-        .map(|v| v.needs_migration())
-        .unwrap_or(true) // If we can't detect version, assume migration needed
+    detect_version(json).is_none_or(SchemaVersion::needs_migration) // If we can't detect version, assume migration needed
 }
 
 /// Auto-migrate a lock file string.

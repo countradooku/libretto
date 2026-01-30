@@ -110,7 +110,7 @@ pub struct Dependency {
 impl Dependency {
     /// Create new dependency.
     #[must_use]
-    pub fn new(package: PackageId, constraint: VersionConstraint) -> Self {
+    pub const fn new(package: PackageId, constraint: VersionConstraint) -> Self {
         Self {
             package,
             constraint,
@@ -120,7 +120,7 @@ impl Dependency {
 
     /// Create dev dependency.
     #[must_use]
-    pub fn dev(package: PackageId, constraint: VersionConstraint) -> Self {
+    pub const fn dev(package: PackageId, constraint: VersionConstraint) -> Self {
         Self {
             package,
             constraint,
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn parse_package_id() {
-        let id = PackageId::parse("symfony/console").unwrap();
+        let id = PackageId::parse("symfony/console").expect("valid package id should parse");
         assert_eq!(id.vendor(), "symfony");
         assert_eq!(id.name(), "console");
         assert_eq!(id.full_name(), "symfony/console");

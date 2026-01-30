@@ -14,7 +14,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 /// Index entry stored in the cache index.
 /// Supports both serde (for JSON fallback) and rkyv (for zero-copy).
 #[derive(
-    Archive, Serialize, Deserialize, SerdeSerialize, SerdeDeserialize, Debug, Clone, PartialEq,
+    Archive, Serialize, Deserialize, SerdeSerialize, SerdeDeserialize, Debug, Clone, PartialEq, Eq,
 )]
 #[rkyv(compare(PartialEq), derive(Debug))]
 pub struct IndexEntry {
@@ -68,7 +68,7 @@ impl IndexEntry {
 
     /// Get entry type enum.
     #[must_use]
-    pub fn cache_entry_type(&self) -> CacheEntryType {
+    pub const fn cache_entry_type(&self) -> CacheEntryType {
         match self.entry_type {
             0 => CacheEntryType::Package,
             1 => CacheEntryType::Metadata,
@@ -95,7 +95,7 @@ impl ArchivedIndexEntry {
 
     /// Get cache entry type from archived entry.
     #[must_use]
-    pub fn cache_entry_type(&self) -> CacheEntryType {
+    pub const fn cache_entry_type(&self) -> CacheEntryType {
         match self.entry_type {
             0 => CacheEntryType::Package,
             1 => CacheEntryType::Metadata,
@@ -123,7 +123,7 @@ impl IndexData {
 
     /// Create empty index data.
     #[allow(dead_code)]
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             version: Self::CURRENT_VERSION,
             entries: Vec::new(),
@@ -131,7 +131,7 @@ impl IndexData {
     }
 
     /// Create index data with entries.
-    fn with_entries(entries: Vec<IndexEntry>) -> Self {
+    const fn with_entries(entries: Vec<IndexEntry>) -> Self {
         Self {
             version: Self::CURRENT_VERSION,
             entries,

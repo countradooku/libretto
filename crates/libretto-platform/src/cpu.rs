@@ -1,16 +1,16 @@
 //! CPU feature detection for SIMD and platform-specific optimizations.
 //!
 //! Provides runtime detection of CPU features including:
-//! - x86_64: SSE4.2, AVX, AVX2, AVX-512
+//! - `x86_64`: SSE4.2, AVX, AVX2, AVX-512
 //! - ARM64: NEON, SVE
 
-use once_cell::sync::Lazy;
-
 /// Global CPU features (detected once at startup).
-static CPU_FEATURES: Lazy<CpuFeatures> = Lazy::new(CpuFeatures::detect);
+static CPU_FEATURES: std::sync::LazyLock<CpuFeatures> =
+    std::sync::LazyLock::new(CpuFeatures::detect);
 
 /// CPU feature flags for SIMD optimization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct CpuFeatures {
     // x86_64 features
     /// SSE4.2 support.
@@ -39,7 +39,7 @@ pub struct CpuFeatures {
     pub pclmulqdq: bool,
 
     // ARM64 features
-    /// NEON support (always on for AArch64).
+    /// NEON support (always on for `AArch64`).
     pub neon: bool,
     /// SVE support.
     pub sve: bool,
@@ -178,7 +178,7 @@ impl CpuFeatures {
         }
     }
 
-    fn detect_cache_line_size() -> usize {
+    const fn detect_cache_line_size() -> usize {
         // Most modern CPUs use 64-byte cache lines
         // ARM big.LITTLE may have 128-byte lines on big cores
         #[cfg(target_arch = "aarch64")]
@@ -272,10 +272,11 @@ impl CpuFeatures {
         // Typically 2-4 vectors per iteration is optimal
         if self.has_avx512() {
             2 // 2x 512-bit = 128 bytes per iteration
-        } else if self.avx2 {
-            4 // 4x 256-bit = 128 bytes per iteration
         } else {
-            4 // 4x 128-bit = 64 bytes per iteration
+            // AVX2: 4x 256-bit = 128 bytes per iteration
+            // SSE4.2/baseline: 4x 128-bit = 64 bytes per iteration
+            // Both use 4 for optimal throughput despite different widths
+            4
         }
     }
 }

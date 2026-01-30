@@ -19,8 +19,8 @@ use libretto_core::{ContentHash, Error, Result};
 use libretto_platform::Platform;
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::sync::Notify;
 use tracing::{debug, info, warn};
@@ -177,10 +177,11 @@ impl TieredCache {
         };
 
         // If bloom filter was newly created, populate from index
-        if let Some(ref bloom) = cache.bloom {
-            if bloom.is_empty() && cache.l2.len() > 0 {
-                cache.rebuild_bloom_filter();
-            }
+        if let Some(ref bloom) = cache.bloom
+            && bloom.is_empty()
+            && !cache.l2.is_empty()
+        {
+            cache.rebuild_bloom_filter();
         }
 
         Ok(cache)
@@ -188,7 +189,7 @@ impl TieredCache {
 
     /// Get the cache root directory.
     #[must_use]
-    pub fn root(&self) -> &PathBuf {
+    pub const fn root(&self) -> &PathBuf {
         &self.root
     }
 
@@ -203,13 +204,13 @@ impl TieredCache {
         let key = hash.to_hex();
 
         // Check bloom filter first for fast negative
-        if let Some(bloom) = &self.bloom {
-            if !bloom.may_contain(&key) {
-                self.stats.record_miss();
-                self.stats.record_bloom_true_negative();
-                self.stats.record_lookup_time(start.elapsed());
-                return Ok(None);
-            }
+        if let Some(bloom) = &self.bloom
+            && !bloom.may_contain(&key)
+        {
+            self.stats.record_miss();
+            self.stats.record_bloom_true_negative();
+            self.stats.record_lookup_time(start.elapsed());
+            return Ok(None);
         }
 
         // Check L1 (memory)
@@ -380,11 +381,11 @@ impl TieredCache {
         let key = hash.to_hex();
 
         // Fast bloom check
-        if let Some(bloom) = &self.bloom {
-            if !bloom.may_contain(&key) {
-                self.stats.record_bloom_true_negative();
-                return false;
-            }
+        if let Some(bloom) = &self.bloom
+            && !bloom.may_contain(&key)
+        {
+            self.stats.record_bloom_true_negative();
+            return false;
         }
 
         // Check L1 then L2
@@ -598,7 +599,7 @@ impl TieredCache {
                             warn!(error = %e, "background GC failed");
                         }
                     }
-                    _ = cache.shutdown.notified() => {
+                    () = cache.shutdown.notified() => {
                         break;
                     }
                 }
@@ -647,7 +648,9 @@ impl TieredCache {
     /// Get bloom filter statistics.
     #[must_use]
     pub fn bloom_stats(&self) -> Option<crate::bloom::BloomFilterStats> {
-        self.bloom.as_ref().map(|b| b.stats())
+        self.bloom
+            .as_ref()
+            .map(super::bloom::ConcurrentBloomFilter::stats)
     }
 
     /// Flush L2 index to disk.

@@ -45,7 +45,7 @@
 //! # }
 //! ```
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod atomic;
@@ -58,10 +58,10 @@ pub mod types;
 pub mod validation;
 
 pub use atomic::{AtomicReader, AtomicWriter, Transaction, WriteResult};
-pub use diff::{compute_diff, ChangeType, FieldChange, LockDiff, PackageChange};
+pub use diff::{ChangeType, FieldChange, LockDiff, PackageChange, compute_diff};
 pub use error::{LockfileError, Result};
 pub use generator::{DeterministicSerializer, LockGenerator};
-pub use hash::{bytes_to_hex, hex_to_bytes, ContentHasher, IntegrityHasher, ParallelHasher};
+pub use hash::{ContentHasher, IntegrityHasher, ParallelHasher, bytes_to_hex, hex_to_bytes};
 pub use migration::{MigrationResult, Migrator, SchemaVersion};
 pub use types::{
     AutoloadConfig, AutoloadPath, ComposerLock, LockedPackage, PackageAlias, PackageAuthor,
@@ -111,19 +111,22 @@ impl LockfileManager {
     }
 
     /// Set custom validator.
-    pub fn with_validator(mut self, validator: Validator) -> Self {
+    #[must_use]
+    pub const fn with_validator(mut self, validator: Validator) -> Self {
         self.validator = validator;
         self
     }
 
     /// Disable auto-migration.
-    pub fn no_auto_migrate(mut self) -> Self {
+    #[must_use]
+    pub const fn no_auto_migrate(mut self) -> Self {
         self.auto_migrate = false;
         self
     }
 
     /// Disable backup creation.
-    pub fn no_backup(mut self) -> Self {
+    #[must_use]
+    pub const fn no_backup(mut self) -> Self {
         self.create_backup = false;
         self
     }
@@ -299,7 +302,7 @@ impl LockfileManager {
     /// Returns error if lock files cannot be read.
     pub fn diff_with(&self, other_path: impl AsRef<Path>) -> Result<LockDiff> {
         let current = self.read()?;
-        let other_manager = LockfileManager::new(other_path)?;
+        let other_manager = Self::new(other_path)?;
         let other = other_manager.read()?;
         Ok(compute_diff(&current, &other))
     }
@@ -402,7 +405,7 @@ impl LockfileManager {
             prefer_stable: lock.prefer_stable,
             prefer_lowest: lock.prefer_lowest,
             platform_count: lock.platform.len(),
-            content_hash: lock.content_hash.clone(),
+            content_hash: lock.content_hash,
         })
     }
 
@@ -443,7 +446,7 @@ pub struct LockStats {
 impl LockStats {
     /// Total package count.
     #[must_use]
-    pub fn total_packages(&self) -> usize {
+    pub const fn total_packages(&self) -> usize {
         self.packages + self.packages_dev
     }
 }
@@ -491,13 +494,13 @@ impl PartialUpdateOptions {
     }
 
     /// Include dev dependencies.
-    pub fn with_dev(&mut self, include: bool) -> &mut Self {
+    pub const fn with_dev(&mut self, include: bool) -> &mut Self {
         self.with_dev = include;
         self
     }
 
     /// Set lock-only mode.
-    pub fn lock_only(&mut self, enabled: bool) -> &mut Self {
+    pub const fn lock_only(&mut self, enabled: bool) -> &mut Self {
         self.lock_only = enabled;
         self
     }

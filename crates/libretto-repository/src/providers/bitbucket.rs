@@ -40,6 +40,7 @@ impl Default for BitbucketConfig {
 
 impl BitbucketConfig {
     /// Create configuration with app password.
+    #[must_use]
     pub fn with_app_password(username: String, app_password: String) -> Self {
         Self {
             username: Some(username),
@@ -49,6 +50,7 @@ impl BitbucketConfig {
     }
 
     /// Create configuration for Bitbucket Server.
+    #[must_use]
     pub fn server(api_url: Url, username: String, token: String) -> Self {
         Self {
             api_url,
@@ -95,16 +97,16 @@ impl BitbucketClient {
         })?;
 
         // Bitbucket uses Basic auth with username and app password
-        if let (Some(username), Some(token)) = (&config.username, &config.token) {
-            if let Some(host) = config.api_url.host_str() {
-                http.set_auth(
-                    host,
-                    AuthType::Basic {
-                        username: username.clone(),
-                        password: token.clone(),
-                    },
-                );
-            }
+        if let (Some(username), Some(token)) = (&config.username, &config.token)
+            && let Some(host) = config.api_url.host_str()
+        {
+            http.set_auth(
+                host,
+                AuthType::Basic {
+                    username: username.clone(),
+                    password: token.clone(),
+                },
+            );
         }
 
         Ok(Self {
@@ -169,11 +171,11 @@ impl BitbucketClient {
         let url = self.api_url(workspace, repo, &format!("src/{reference}/{path}"))?;
         let cache_key = format!("bitbucket:{workspace}/{repo}/{path}@{reference}");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(content) = String::from_utf8(data.to_vec()) {
-                debug!(workspace, repo, path, reference, "cache hit");
-                return Ok(content);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(content) = String::from_utf8(data.to_vec())
+        {
+            debug!(workspace, repo, path, reference, "cache hit");
+            return Ok(content);
         }
 
         let response = self.http.get(&url).await?;
@@ -196,10 +198,10 @@ impl BitbucketClient {
         let url = self.api_url(workspace, repo, "refs/tags")?;
         let cache_key = format!("bitbucket:{workspace}/{repo}/tags");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(tags) = sonic_rs::from_slice::<Vec<BitbucketRef>>(&data) {
-                return Ok(tags);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(tags) = sonic_rs::from_slice::<Vec<BitbucketRef>>(&data)
+        {
+            return Ok(tags);
         }
 
         let tags = self.fetch_all_pages::<BitbucketRef>(&url).await?;
@@ -218,10 +220,10 @@ impl BitbucketClient {
         let url = self.api_url(workspace, repo, "refs/branches")?;
         let cache_key = format!("bitbucket:{workspace}/{repo}/branches");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(branches) = sonic_rs::from_slice::<Vec<BitbucketRef>>(&data) {
-                return Ok(branches);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(branches) = sonic_rs::from_slice::<Vec<BitbucketRef>>(&data)
+        {
+            return Ok(branches);
         }
 
         let branches = self.fetch_all_pages::<BitbucketRef>(&url).await?;
@@ -249,10 +251,10 @@ impl BitbucketClient {
 
         let cache_key = format!("bitbucket:{workspace}/{repo}/info");
 
-        if let Some(data) = self.cache.get_metadata(&cache_key) {
-            if let Ok(repo_info) = sonic_rs::from_slice::<BitbucketRepository>(&data) {
-                return Ok(repo_info);
-            }
+        if let Some(data) = self.cache.get_metadata(&cache_key)
+            && let Ok(repo_info) = sonic_rs::from_slice::<BitbucketRepository>(&data)
+        {
+            return Ok(repo_info);
         }
 
         let response = self.http.get(&url).await?;
@@ -274,14 +276,13 @@ impl BitbucketClient {
 }
 
 impl VcsProvider for BitbucketClient {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "Bitbucket"
     }
 
     fn can_handle(&self, url: &Url) -> bool {
         url.host_str()
-            .map(|h| h.contains("bitbucket.org") || h.contains("bitbucket."))
-            .unwrap_or(false)
+            .is_some_and(|h| h.contains("bitbucket.org") || h.contains("bitbucket."))
     }
 
     fn fetch_composer_json<'a>(

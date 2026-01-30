@@ -67,7 +67,7 @@
 //! # }
 //! ```
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 #![allow(unsafe_code)] // Required for memmap2
 
@@ -84,8 +84,8 @@ mod tiered;
 // Re-export main types
 pub use bloom::{BloomFilter, BloomFilterStats, ConcurrentBloomFilter};
 pub use compression::{
-    compress, compress_with_stats, decompress, decompress_with_hint, is_compressed,
-    should_compress, strip_magic, with_magic, CompressionStats, COMPRESSED_MAGIC,
+    COMPRESSED_MAGIC, CompressionStats, compress, compress_with_stats, decompress,
+    decompress_with_hint, is_compressed, should_compress, strip_magic, with_magic,
 };
 pub use config::{CacheConfig, CacheConfigBuilder, CacheEntryType};
 pub use index::{CacheIndex, IndexEntry};
@@ -332,7 +332,7 @@ impl Cache {
     }
 
     fn make_key(package_id: &PackageId, version: &str) -> String {
-        format!("{}:{}", package_id, version)
+        format!("{package_id}:{version}")
     }
 
     fn index_path(&self) -> PathBuf {

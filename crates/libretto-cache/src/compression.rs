@@ -37,7 +37,7 @@ pub fn decompress_with_hint(data: &[u8], size_hint: usize) -> std::io::Result<Ve
 /// Check if data is worth compressing based on size.
 /// Very small data may not benefit from compression.
 #[must_use]
-pub fn should_compress(data: &[u8]) -> bool {
+pub const fn should_compress(data: &[u8]) -> bool {
     // Don't compress data smaller than 100 bytes
     data.len() >= 100
 }
@@ -70,7 +70,7 @@ impl CompressionStats {
 
     /// Bytes saved by compression.
     #[must_use]
-    pub fn bytes_saved(&self) -> usize {
+    pub const fn bytes_saved(&self) -> usize {
         self.original_size.saturating_sub(self.compressed_size)
     }
 }

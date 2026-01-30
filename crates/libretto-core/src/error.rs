@@ -109,6 +109,7 @@ pub enum Error {
 impl Error {
     /// Create an IO error with context.
     #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // err is consumed to extract the message
     pub fn io(path: impl Into<PathBuf>, err: std::io::Error) -> Self {
         Self::Io {
             path: path.into(),

@@ -49,7 +49,7 @@ pub async fn run(args: SelfUpdateArgs) -> Result<()> {
     if colors {
         println!("Current version: {}", CURRENT_VERSION.yellow());
     } else {
-        println!("Current version: {}", CURRENT_VERSION);
+        println!("Current version: {CURRENT_VERSION}");
     }
 
     // Handle rollback
@@ -72,7 +72,7 @@ pub async fn run(args: SelfUpdateArgs) -> Result<()> {
     if colors {
         println!("Latest version:  {}", latest.yellow());
     } else {
-        println!("Latest version:  {}", latest);
+        println!("Latest version:  {latest}");
     }
 
     // Compare versions
@@ -87,7 +87,7 @@ pub async fn run(args: SelfUpdateArgs) -> Result<()> {
 
     if args.check {
         if is_upgrade {
-            info(&format!("New version available: {}", target_version));
+            info(&format!("New version available: {target_version}"));
             println!();
             println!("Run 'libretto self-update' to update.");
         } else {
@@ -100,13 +100,11 @@ pub async fn run(args: SelfUpdateArgs) -> Result<()> {
     println!();
     if is_upgrade {
         info(&format!(
-            "Upgrading from {} to {}",
-            CURRENT_VERSION, target_version
+            "Upgrading from {CURRENT_VERSION} to {target_version}"
         ));
     } else {
         warning(&format!(
-            "Downgrading from {} to {}",
-            CURRENT_VERSION, target_version
+            "Downgrading from {CURRENT_VERSION} to {target_version}"
         ));
     }
 
@@ -166,7 +164,7 @@ pub async fn run(args: SelfUpdateArgs) -> Result<()> {
 
     match verify_output {
         Ok(output) if output.status.success() => {
-            success(&format!("Successfully updated to {}", target_version));
+            success(&format!("Successfully updated to {target_version}"));
 
             // Clean up backup after successful update
             // Keep it for rollback though
@@ -198,7 +196,7 @@ pub async fn run(args: SelfUpdateArgs) -> Result<()> {
 async fn fetch_latest_version(preview: bool) -> Result<String> {
     let client = reqwest::Client::builder().user_agent("libretto").build()?;
 
-    let url = format!("https://api.github.com/repos/{}/releases", GITHUB_REPO);
+    let url = format!("https://api.github.com/repos/{GITHUB_REPO}/releases");
     let response = client.get(&url).send().await?;
 
     if !response.status().is_success() {
@@ -215,7 +213,7 @@ async fn fetch_latest_version(preview: bool) -> Result<String> {
 
         let is_prerelease = release
             .get("prerelease")
-            .and_then(|p| p.as_bool())
+            .and_then(sonic_rs::JsonValueTrait::as_bool)
             .unwrap_or(false);
 
         // Skip prereleases unless --preview
@@ -256,8 +254,7 @@ fn get_download_url(version: &str) -> Result<String> {
     };
 
     Ok(format!(
-        "https://github.com/{}/releases/download/v{}/libretto-{}-{}{}",
-        GITHUB_REPO, version, os, arch, ext
+        "https://github.com/{GITHUB_REPO}/releases/download/v{version}/libretto-{os}-{arch}{ext}"
     ))
 }
 
@@ -325,16 +322,13 @@ fn set_channel(channel: &str) -> Result<()> {
 
     match channel.to_lowercase().as_str() {
         "stable" | "preview" | "snapshot" => {
-            info(&format!("Update channel set to: {}", channel));
+            info(&format!("Update channel set to: {channel}"));
             success("Channel preference saved");
             // In a real implementation, this would save to config
             Ok(())
         }
         _ => {
-            anyhow::bail!(
-                "Invalid channel '{}'. Valid channels: stable, preview, snapshot",
-                channel
-            );
+            anyhow::bail!("Invalid channel '{channel}'. Valid channels: stable, preview, snapshot");
         }
     }
 }

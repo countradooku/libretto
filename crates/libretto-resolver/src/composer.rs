@@ -521,7 +521,7 @@ pub struct ComposerConfig {
     /// Classmap authoritative.
     #[serde(rename = "classmap-authoritative", default)]
     pub classmap_authoritative: Option<bool>,
-    /// APCu autoloader.
+    /// `APCu` autoloader.
     #[serde(rename = "apcu-autoloader", default)]
     pub apcu_autoloader: Option<bool>,
     /// Autoloader suffix.

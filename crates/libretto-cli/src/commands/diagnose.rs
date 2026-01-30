@@ -138,10 +138,7 @@ pub async fn run(_args: DiagnoseArgs) -> Result<()> {
                 warnings
             );
         } else {
-            println!(
-                "FAIL: Found {} error(s) and {} warning(s)",
-                errors, warnings
-            );
+            println!("FAIL: Found {errors} error(s) and {warnings} warning(s)");
         }
         std::process::exit(1);
     } else if warnings > 0 {
@@ -152,14 +149,12 @@ pub async fn run(_args: DiagnoseArgs) -> Result<()> {
                 warnings
             );
         } else {
-            println!("WARN: Found {} warning(s), but no errors", warnings);
+            println!("WARN: Found {warnings} warning(s), but no errors");
         }
+    } else if colors {
+        println!("{} No issues found", "OK".green().bold());
     } else {
-        if colors {
-            println!("{} No issues found", "OK".green().bold());
-        } else {
-            println!("OK: No issues found");
-        }
+        println!("OK: No issues found");
     }
 
     Ok(())
@@ -203,7 +198,7 @@ fn print_check(
         }
     };
 
-    println!("{}: {} - {}", label, status, message);
+    println!("{label}: {status} - {message}");
 }
 
 fn check_php() -> CheckResult {
@@ -218,14 +213,11 @@ fn check_php() -> CheckResult {
             let parts: Vec<u32> = version.split('.').filter_map(|s| s.parse().ok()).collect();
 
             if parts.len() >= 2 && (parts[0] > 8 || (parts[0] == 8 && parts[1] >= 1)) {
-                CheckResult::Ok(format!("PHP {}", version))
+                CheckResult::Ok(format!("PHP {version}"))
             } else if parts.len() >= 2 && parts[0] >= 7 {
-                CheckResult::Warning(format!("PHP {} detected, but 8.1+ is recommended", version))
+                CheckResult::Warning(format!("PHP {version} detected, but 8.1+ is recommended"))
             } else {
-                CheckResult::Error(format!(
-                    "PHP {} is too old, minimum required is 7.4",
-                    version
-                ))
+                CheckResult::Error(format!("PHP {version} is too old, minimum required is 7.4"))
             }
         }
         Ok(_) => CheckResult::Error("PHP is installed but returned an error".to_string()),
@@ -245,9 +237,9 @@ fn check_composer_json() -> CheckResult {
     match std::fs::read_to_string(&path) {
         Ok(content) => match sonic_rs::from_str::<sonic_rs::Value>(&content) {
             Ok(_) => CheckResult::Ok("Valid JSON".to_string()),
-            Err(e) => CheckResult::Error(format!("Invalid JSON: {}", e)),
+            Err(e) => CheckResult::Error(format!("Invalid JSON: {e}")),
         },
-        Err(e) => CheckResult::Error(format!("Cannot read file: {}", e)),
+        Err(e) => CheckResult::Error(format!("Cannot read file: {e}")),
     }
 }
 
@@ -272,9 +264,9 @@ fn check_composer_lock() -> CheckResult {
     match std::fs::read_to_string(&lock_path) {
         Ok(content) => match sonic_rs::from_str::<sonic_rs::Value>(&content) {
             Ok(_) => CheckResult::Ok("Valid JSON".to_string()),
-            Err(e) => CheckResult::Error(format!("Invalid JSON: {}", e)),
+            Err(e) => CheckResult::Error(format!("Invalid JSON: {e}")),
         },
-        Err(e) => CheckResult::Error(format!("Cannot read file: {}", e)),
+        Err(e) => CheckResult::Error(format!("Cannot read file: {e}")),
     }
 }
 
@@ -293,9 +285,9 @@ async fn check_packagist() -> CheckResult {
                 CheckResult::Ok("Connected successfully".to_string())
             }
             Ok(response) => CheckResult::Warning(format!("HTTP status: {}", response.status())),
-            Err(e) => CheckResult::Error(format!("Connection failed: {}", e)),
+            Err(e) => CheckResult::Error(format!("Connection failed: {e}")),
         },
-        Err(e) => CheckResult::Error(format!("Failed to create HTTP client: {}", e)),
+        Err(e) => CheckResult::Error(format!("Failed to create HTTP client: {e}")),
     }
 }
 
@@ -313,9 +305,9 @@ async fn check_github() -> CheckResult {
                 CheckResult::Warning("Rate limited (this is normal without a token)".to_string())
             }
             Ok(response) => CheckResult::Warning(format!("HTTP status: {}", response.status())),
-            Err(e) => CheckResult::Error(format!("Connection failed: {}", e)),
+            Err(e) => CheckResult::Error(format!("Connection failed: {e}")),
         },
-        Err(e) => CheckResult::Error(format!("Failed to create HTTP client: {}", e)),
+        Err(e) => CheckResult::Error(format!("Failed to create HTTP client: {e}")),
     }
 }
 
@@ -340,16 +332,16 @@ fn check_cache_dir() -> CheckResult {
                 // Check if writable
                 let test_file = dir.join(".write_test");
                 match std::fs::write(&test_file, "test") {
-                    Ok(_) => {
+                    Ok(()) => {
                         let _ = std::fs::remove_file(&test_file);
                         CheckResult::Ok(format!("{}", dir.display()))
                     }
-                    Err(e) => CheckResult::Error(format!("Not writable: {}", e)),
+                    Err(e) => CheckResult::Error(format!("Not writable: {e}")),
                 }
             } else {
                 match std::fs::create_dir_all(&dir) {
-                    Ok(_) => CheckResult::Ok(format!("Created {}", dir.display())),
-                    Err(e) => CheckResult::Error(format!("Cannot create: {}", e)),
+                    Ok(()) => CheckResult::Ok(format!("Created {}", dir.display())),
+                    Err(e) => CheckResult::Error(format!("Cannot create: {e}")),
                 }
             }
         }
@@ -369,33 +361,30 @@ fn check_vendor_dir() -> CheckResult {
     // Check if writable
     let test_file = vendor.join(".write_test");
     match std::fs::write(&test_file, "test") {
-        Ok(_) => {
+        Ok(()) => {
             let _ = std::fs::remove_file(&test_file);
             CheckResult::Ok("Writable".to_string())
         }
-        Err(e) => CheckResult::Error(format!("Not writable: {}", e)),
+        Err(e) => CheckResult::Error(format!("Not writable: {e}")),
     }
 }
 
 fn check_composer_home() -> CheckResult {
-    match std::env::var("COMPOSER_HOME") {
-        Ok(home) => {
-            let path = std::path::PathBuf::from(&home);
-            if path.exists() {
-                CheckResult::Ok(home)
-            } else {
-                CheckResult::Warning(format!("COMPOSER_HOME set but does not exist: {}", home))
-            }
+    if let Ok(home) = std::env::var("COMPOSER_HOME") {
+        let path = std::path::PathBuf::from(&home);
+        if path.exists() {
+            CheckResult::Ok(home)
+        } else {
+            CheckResult::Warning(format!("COMPOSER_HOME set but does not exist: {home}"))
         }
-        Err(_) => {
-            let default = directories::UserDirs::new()
-                .map(|d| d.home_dir().join(".composer"))
-                .filter(|p| p.exists());
+    } else {
+        let default = directories::UserDirs::new()
+            .map(|d| d.home_dir().join(".composer"))
+            .filter(|p| p.exists());
 
-            match default {
-                Some(path) => CheckResult::Ok(format!("Using default: {}", path.display())),
-                None => CheckResult::Ok("Not set (using defaults)".to_string()),
-            }
+        match default {
+            Some(path) => CheckResult::Ok(format!("Using default: {}", path.display())),
+            None => CheckResult::Ok("Not set (using defaults)".to_string()),
         }
     }
 }

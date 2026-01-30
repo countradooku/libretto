@@ -269,10 +269,10 @@ impl ConfigLoader {
         if let Some(ttl) = config.cache_files_ttl {
             resolved.cache_files_ttl = ttl;
         }
-        if let Some(ref maxsize) = config.cache_files_maxsize {
-            if let Ok(bytes) = crate::env::parse_byte_size(maxsize) {
-                resolved.cache_files_maxsize = bytes;
-            }
+        if let Some(ref maxsize) = config.cache_files_maxsize
+            && let Ok(bytes) = crate::env::parse_byte_size(maxsize)
+        {
+            resolved.cache_files_maxsize = bytes;
         }
         if let Some(compat) = config.bin_compat {
             resolved.bin_compat = compat;
@@ -389,7 +389,7 @@ impl ConfigLoader {
 
     /// Get environment configuration.
     #[must_use]
-    pub fn env(&self) -> &EnvConfig {
+    pub const fn env(&self) -> &EnvConfig {
         &self.env_config
     }
 
@@ -427,7 +427,7 @@ pub struct CliOverrides {
     pub optimize_autoloader: bool,
     /// Authoritative classmap.
     pub classmap_authoritative: bool,
-    /// APCu autoloader.
+    /// `APCu` autoloader.
     pub apcu_autoloader: bool,
     /// Ignore platform requirements.
     pub ignore_platform_reqs: bool,

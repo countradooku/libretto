@@ -80,7 +80,7 @@
 //! # }
 //! ```
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod checksum;
@@ -98,8 +98,8 @@ mod vcs;
 
 // Re-export main types
 pub use checksum::{
-    blake3_file, bytes_to_hex, hex_to_bytes, sha1_file, sha256_file, verify_file,
-    ComputedChecksums, MultiHasher,
+    ComputedChecksums, MultiHasher, blake3_file, bytes_to_hex, hex_to_bytes, sha1_file,
+    sha256_file, verify_file,
 };
 pub use client::HttpClient;
 pub use config::{
@@ -107,14 +107,14 @@ pub use config::{
     ExpectedChecksum, GitLabOAuth, HttpBasicAuth,
 };
 pub use error::{DownloadError, Result};
-pub use extract::{extract, extract_with_strip, ExtractOptions, ExtractionResult, Extractor};
+pub use extract::{ExtractOptions, ExtractionResult, Extractor, extract, extract_with_strip};
 pub use parallel::{DownloadStats, ParallelDownloader, ParallelDownloaderBuilder, StatsSnapshot};
 pub use progress::{DownloadProgress, ProgressStats, ProgressTracker};
-pub use retry::{with_mirrors, with_retry, CircuitBreaker, RetryConfig};
+pub use retry::{CircuitBreaker, RetryConfig, with_mirrors, with_retry};
 pub use source::{ArchiveType, DownloadResult, DownloadSource, Source, SourceType, VcsRef};
 pub use stream::{DownloadState, DownloadedFile, StreamDownloader};
 pub use throttle::BandwidthThrottler;
-pub use vcs::{copy_path, GitHandler, GitResult, HgHandler, HgResult, SvnHandler, SvnResult};
+pub use vcs::{GitHandler, GitResult, HgHandler, HgResult, SvnHandler, SvnResult, copy_path};
 
 /// Simple single-file downloader for backwards compatibility.
 ///

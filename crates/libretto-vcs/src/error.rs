@@ -282,7 +282,7 @@ impl VcsError {
 
     /// Check if this is a "not found" error.
     #[must_use]
-    pub fn is_not_found(&self) -> bool {
+    pub const fn is_not_found(&self) -> bool {
         matches!(
             self,
             Self::RepositoryNotFound { .. } | Self::ReferenceNotFound { .. }
@@ -291,7 +291,7 @@ impl VcsError {
 
     /// Check if this is an authentication error.
     #[must_use]
-    pub fn is_auth_error(&self) -> bool {
+    pub const fn is_auth_error(&self) -> bool {
         matches!(
             self,
             Self::AuthenticationFailed { .. }

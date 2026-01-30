@@ -1,7 +1,7 @@
-//! DependencyProvider implementation for Composer packages.
+//! `DependencyProvider` implementation for Composer packages.
 //!
 //! This module implements the `pubgrub::DependencyProvider` trait for
-//! Composer packages, enabling the PubGrub algorithm to resolve dependencies.
+//! Composer packages, enabling the `PubGrub` algorithm to resolve dependencies.
 
 use crate::index::{PackageIndex, PackageSource};
 use crate::package::PackageName;
@@ -299,12 +299,11 @@ impl<S: PackageSource + 'static> DependencyProvider for ComposerProvider<S> {
         }
 
         // Get all versions for this package
-        let entry = match self.index.get(package) {
-            Some(e) => e,
-            None => {
-                debug!(package = %package, "package not found");
-                return Ok(None);
-            }
+        let entry = if let Some(e) = self.index.get(package) {
+            e
+        } else {
+            debug!(package = %package, "package not found");
+            return Ok(None);
         };
 
         // Filter versions that satisfy the range constraint
@@ -353,12 +352,11 @@ impl<S: PackageSource + 'static> DependencyProvider for ComposerProvider<S> {
         }
 
         // Get dependencies from index
-        let deps = match self.index.get_dependencies(package, version) {
-            Some(d) => d,
-            None => {
-                warn!(package = %package, version = %version, "dependencies not found");
-                return Ok(Dependencies::Available(DependencyConstraints::default()));
-            }
+        let deps = if let Some(d) = self.index.get_dependencies(package, version) {
+            d
+        } else {
+            warn!(package = %package, version = %version, "dependencies not found");
+            return Ok(Dependencies::Available(DependencyConstraints::default()));
         };
 
         // Convert to pubgrub format
@@ -415,7 +413,7 @@ impl Ord for PackagePriority {
     }
 }
 
-/// Convert pubgrub Ranges to ComposerConstraint.
+/// Convert pubgrub Ranges to `ComposerConstraint`.
 fn ranges_to_constraint(ranges: &Ranges<ComposerVersion>) -> ComposerConstraint {
     if ranges.is_empty() {
         return ComposerConstraint::empty();
@@ -423,7 +421,7 @@ fn ranges_to_constraint(ranges: &Ranges<ComposerVersion>) -> ComposerConstraint 
     ComposerConstraint::any()
 }
 
-/// Convert ComposerConstraint to pubgrub Ranges.
+/// Convert `ComposerConstraint` to pubgrub Ranges.
 fn constraint_to_ranges(constraint: &ComposerConstraint) -> Ranges<ComposerVersion> {
     constraint.ranges().clone()
 }

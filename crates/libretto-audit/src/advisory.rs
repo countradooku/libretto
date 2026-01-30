@@ -104,16 +104,16 @@ impl VersionConstraint {
         }
 
         // Fallback: try exact match
-        if let Ok(version) = Version::parse(constraint.trim_start_matches('=')) {
-            if let Ok(req) = VersionReq::parse(&format!("={version}")) {
-                return Some(Self {
-                    req,
-                    original: constraint.to_string(),
-                });
-            }
-        }
-
-        None
+        Version::parse(constraint.trim_start_matches('='))
+            .ok()
+            .and_then(|version| {
+                VersionReq::parse(&format!("={version}"))
+                    .ok()
+                    .map(|req| Self {
+                        req,
+                        original: constraint.to_string(),
+                    })
+            })
     }
 
     /// Check if version matches constraint.
@@ -155,7 +155,7 @@ impl ProcessedVulnerability {
         } else {
             debug!(
                 package = %package,
-                constraints = ?constraints.iter().map(|c| c.original()).collect::<Vec<_>>(),
+                constraints = ?constraints.iter().map(VersionConstraint::original).collect::<Vec<_>>(),
                 "parsed version constraints"
             );
         }
@@ -298,7 +298,8 @@ impl AdvisoryDatabase {
     }
 
     /// Set cache TTL.
-    pub fn with_cache_ttl(mut self, ttl: Duration) -> Self {
+    #[must_use]
+    pub const fn with_cache_ttl(mut self, ttl: Duration) -> Self {
         self.cache_ttl = ttl;
         self
     }
@@ -321,11 +322,11 @@ impl AdvisoryDatabase {
         package: &PackageId,
     ) -> Result<Vec<ProcessedVulnerability>> {
         // Check cache first
-        if !self.is_cache_stale() {
-            if let Some(cached) = self.cache.get(package) {
-                debug!(package = %package, "using cached advisories");
-                return Ok(cached.clone());
-            }
+        if !self.is_cache_stale()
+            && let Some(cached) = self.cache.get(package)
+        {
+            debug!(package = %package, "using cached advisories");
+            return Ok(cached.clone());
         }
 
         info!(package = %package, "fetching security advisories");
@@ -448,10 +449,10 @@ impl AdvisoryDatabase {
         }
 
         for task in tasks {
-            if let Ok(Ok((package, vulns))) = task.await {
-                if !vulns.is_empty() {
-                    results.insert(package, vulns);
-                }
+            if let Ok(Ok((package, vulns))) = task.await
+                && !vulns.is_empty()
+            {
+                results.insert(package, vulns);
             }
         }
 

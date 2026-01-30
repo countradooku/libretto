@@ -48,7 +48,7 @@ pub struct SecureClientBuilder {
 impl SecureClientBuilder {
     /// Create new secure client builder.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             https_only: true,
             custom_ca: Vec::new(),
@@ -58,7 +58,7 @@ impl SecureClientBuilder {
 
     /// Set HTTPS-only mode (default: true).
     #[must_use]
-    pub fn https_only(mut self, enabled: bool) -> Self {
+    pub const fn https_only(mut self, enabled: bool) -> Self {
         self.https_only = enabled;
         self
     }
@@ -85,7 +85,7 @@ impl SecureClientBuilder {
 
     /// Set request timeout.
     #[must_use]
-    pub fn timeout(mut self, timeout: std::time::Duration) -> Self {
+    pub const fn timeout(mut self, timeout: std::time::Duration) -> Self {
         self.timeout = timeout;
         self
     }
@@ -151,7 +151,7 @@ pub fn validate_package_name(name: &str) -> Result<()> {
     }
 
     // Check for control characters
-    if name.chars().any(|c| c.is_control()) {
+    if name.chars().any(char::is_control) {
         return Err(SecurityError::PathTraversal(
             "control character in package name".to_string(),
         ));
@@ -204,13 +204,13 @@ pub fn sanitize_path(path: impl AsRef<Path>, base: impl AsRef<Path>) -> Result<P
 
     // Verify final path is within base
     let canonical_base = base.canonicalize().unwrap_or_else(|_| base.to_path_buf());
-    if let Ok(canonical_path) = safe_path.canonicalize() {
-        if !canonical_path.starts_with(&canonical_base) {
-            return Err(SecurityError::PathTraversal(format!(
-                "path escapes base directory: {}",
-                path.display()
-            )));
-        }
+    if let Ok(canonical_path) = safe_path.canonicalize()
+        && !canonical_path.starts_with(&canonical_base)
+    {
+        return Err(SecurityError::PathTraversal(format!(
+            "path escapes base directory: {}",
+            path.display()
+        )));
     }
 
     Ok(safe_path)
@@ -221,7 +221,7 @@ pub fn sanitize_path(path: impl AsRef<Path>, base: impl AsRef<Path>) -> Result<P
 /// # Errors
 /// Returns error if file cannot be created.
 pub fn create_secure_temp() -> Result<tempfile::NamedTempFile> {
-    let temp = tempfile::NamedTempFile::new().map_err(|e| SecurityError::Io(e))?;
+    let temp = tempfile::NamedTempFile::new().map_err(SecurityError::Io)?;
 
     #[cfg(unix)]
     {
@@ -238,7 +238,7 @@ pub fn create_secure_temp() -> Result<tempfile::NamedTempFile> {
 /// # Errors
 /// Returns error if directory cannot be created.
 pub fn create_secure_temp_dir() -> Result<tempfile::TempDir> {
-    let temp = tempfile::TempDir::new().map_err(|e| SecurityError::Io(e))?;
+    let temp = tempfile::TempDir::new().map_err(SecurityError::Io)?;
 
     #[cfg(unix)]
     {
@@ -259,7 +259,7 @@ pub fn mask_sensitive(s: &str, show_chars: usize) -> String {
 
     let start = &s[..show_chars];
     let end = &s[s.len() - show_chars..];
-    format!("{}...{}", start, end)
+    format!("{start}...{end}")
 }
 
 #[cfg(test)]

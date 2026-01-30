@@ -112,22 +112,22 @@ impl Context {
     }
 
     /// Check if verbose output is enabled
-    pub fn is_verbose(&self) -> bool {
+    pub const fn is_verbose(&self) -> bool {
         self.output_mode.is_verbose()
     }
 
     /// Check if debug output is enabled
-    pub fn is_debug(&self) -> bool {
+    pub const fn is_debug(&self) -> bool {
         self.output_mode.is_debug()
     }
 
     /// Check if quiet mode is enabled
-    pub fn is_quiet(&self) -> bool {
+    pub const fn is_quiet(&self) -> bool {
         self.output_mode.is_quiet()
     }
 
     /// Check if JSON output is requested
-    pub fn is_json(&self) -> bool {
+    pub const fn is_json(&self) -> bool {
         self.output_mode.is_json()
     }
 
@@ -220,8 +220,7 @@ fn get_memory_usage() -> u64 {
             .ok()
             .and_then(|s| s.split_whitespace().next().map(String::from))
             .and_then(|s| s.parse::<u64>().ok())
-            .map(|pages| pages * 4096) // Page size
-            .unwrap_or(0)
+            .map_or(0, |pages| pages * 4096)
     }
 
     #[cfg(target_os = "macos")]

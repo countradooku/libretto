@@ -1,5 +1,7 @@
 //! Cache commands - manage the package cache.
 
+use crate::cas_cache;
+use crate::output::format_bytes;
 use anyhow::Result;
 use clap::Args;
 use std::path::PathBuf;
@@ -18,6 +20,10 @@ pub struct CacheClearArgs {
     /// Only clear the VCS cache
     #[arg(long)]
     pub vcs: bool,
+
+    /// Only clear the content-addressable storage (CAS) cache
+    #[arg(long)]
+    pub cas: bool,
 
     /// Garbage collect expired cache entries
     #[arg(long)]
@@ -52,7 +58,7 @@ pub async fn run_clear(args: CacheClearArgs) -> Result<()> {
     header("Clearing cache");
 
     let cache = Cache::new()?;
-    let clear_all = !args.packages && !args.repo && !args.vcs && !args.gc;
+    let clear_all = !args.packages && !args.repo && !args.vcs && !args.cas && !args.gc;
 
     let mut total_cleared: u64 = 0;
 
@@ -97,6 +103,15 @@ pub async fn run_clear(args: CacheClearArgs) -> Result<()> {
         info(&format!("VCS cache cleared: {}", format_bytes(cleared)));
     }
 
+    if clear_all || args.cas {
+        info("Clearing CAS cache...");
+        let cas_dir = cas_cache::cas_dir();
+        let cleared = clear_directory(&cas_dir)?;
+        total_cleared += cleared;
+        cas_cache::clear_cache()?;
+        info(&format!("CAS cache cleared: {}", format_bytes(cleared)));
+    }
+
     success(&format!("Total cleared: {}", format_bytes(total_cleared)));
 
     // Show remaining cache size
@@ -112,7 +127,7 @@ pub async fn run_clear(args: CacheClearArgs) -> Result<()> {
 /// Run the cache:list command
 pub async fn run_list(args: CacheListArgs) -> Result<()> {
     use crate::output::table::Table;
-    use crate::output::{format_bytes, header, info};
+    use crate::output::{header, info};
 
     header("Cache contents");
 
@@ -163,8 +178,22 @@ pub async fn run_list(args: CacheListArgs) -> Result<()> {
         table.row(["VCS", &format_bytes(size), &count.to_string()]);
     }
 
+    // Add CAS cache stats
+    let cas_size = cas_cache::cache_size();
+    let cas_count = cas_cache::cached_package_count().unwrap_or(0);
+    table.row([
+        "CAS (hardlinks)",
+        &format_bytes(cas_size),
+        &cas_count.to_string(),
+    ]);
+
     let (total_size, total_count) = dir_stats(&cache_dir)?;
-    table.row(["Total", &format_bytes(total_size), &total_count.to_string()]);
+    let total_with_cas = total_size + cas_size;
+    table.row([
+        "Total",
+        &format_bytes(total_with_cas),
+        &(total_count + cas_count).to_string(),
+    ]);
 
     table.print();
 
@@ -190,12 +219,12 @@ fn clear_directory(path: &PathBuf) -> Result<u64> {
 
     for entry in walkdir::WalkDir::new(path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
     {
-        if entry.file_type().is_file() {
-            if let Ok(meta) = entry.metadata() {
-                total += meta.len();
-            }
+        if entry.file_type().is_file()
+            && let Ok(meta) = entry.metadata()
+        {
+            total += meta.len();
         }
     }
 
@@ -223,13 +252,13 @@ fn dir_stats(path: &PathBuf) -> Result<(u64, usize)> {
 
     for entry in walkdir::WalkDir::new(path)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(std::result::Result::ok)
     {
-        if entry.file_type().is_file() {
-            if let Ok(meta) = entry.metadata() {
-                size += meta.len();
-                count += 1;
-            }
+        if entry.file_type().is_file()
+            && let Ok(meta) = entry.metadata()
+        {
+            size += meta.len();
+            count += 1;
         }
     }
 
@@ -247,9 +276,11 @@ fn list_cache_directory(path: &PathBuf) -> Result<()> {
     }
 
     let colors = crate::output::colors_enabled();
-    let mut entries: Vec<_> = std::fs::read_dir(path)?.filter_map(|e| e.ok()).collect();
+    let mut entries: Vec<_> = std::fs::read_dir(path)?
+        .filter_map(std::result::Result::ok)
+        .collect();
 
-    entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    entries.sort_by_key(std::fs::DirEntry::file_name);
 
     let max_display = 20;
     let total = entries.len();
@@ -299,7 +330,7 @@ fn parse_duration(s: &str) -> Result<std::time::Duration> {
         "m" => num * 60,
         "h" => num * 3600,
         "d" => num * 86400,
-        "w" => num * 604800,
+        "w" => num * 604_800,
         _ => {
             // Assume days if no unit
             let num: u64 = s.parse().unwrap_or(30);

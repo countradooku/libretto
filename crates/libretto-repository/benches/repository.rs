@@ -2,7 +2,7 @@
 //!
 //! These benchmarks test the performance of repository operations.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use libretto_repository::cache::RepositoryCache;
 use std::time::Duration;
 

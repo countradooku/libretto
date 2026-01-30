@@ -69,7 +69,7 @@ pub async fn run(args: SearchArgs) -> Result<()> {
         }
         Err(e) => {
             spinner.finish_and_clear();
-            anyhow::bail!("Search failed: {}", e);
+            anyhow::bail!("Search failed: {e}");
         }
     }
 
@@ -77,36 +77,63 @@ pub async fn run(args: SearchArgs) -> Result<()> {
 }
 
 fn output_full(results: &[libretto_repository::PackageSearchResult]) -> Result<()> {
-    use crate::output::table::Table;
     use owo_colors::OwoColorize;
 
     let colors = crate::output::colors_enabled();
 
-    let mut table = Table::new();
-    table.headers(["Package", "Description", "Downloads"]);
+    // Limit to 15 results for display (like Composer)
+    let display_count = 15.min(results.len());
 
-    // Limit to 25 results for display
-    let display_count = 25.min(results.len());
+    // Calculate name column width based on longest name + 1 padding (like Composer)
+    let name_length = results
+        .iter()
+        .take(display_count)
+        .map(|r| r.name.len())
+        .max()
+        .unwrap_or(20)
+        + 1;
+
+    // Get terminal width, default to 80 (like Composer)
+    let term_width = console::Term::stdout().size().1 as usize;
 
     for result in results.iter().take(display_count) {
-        let downloads = format_downloads(result.downloads);
-        let description = truncate(&result.description, 60);
+        let url = format!("https://packagist.org/packages/{}", result.name);
 
-        table.row([result.name.as_str(), &description, &downloads]);
-    }
+        // Build warning prefix for abandoned packages (like Composer)
+        let warning = if result.abandoned {
+            if colors {
+                format!("{} ", "! Abandoned !".red().bold())
+            } else {
+                "! Abandoned ! ".to_string()
+            }
+        } else {
+            String::new()
+        };
+        // "! Abandoned ! " = 14 chars (but ANSI codes add more, so use plain length)
+        let warning_len = if result.abandoned { 14 } else { 0 };
 
-    table.print();
+        // Calculate remaining space for description (like Composer)
+        // width - nameLength - warningLength - 2 (for spacing)
+        let remaining = term_width.saturating_sub(name_length + warning_len + 2);
+        let description = truncate(&result.description, remaining);
 
-    if results.len() > display_count {
-        println!();
+        // Print the row - Composer style with hyperlinked name
+        // Calculate padding separately so hyperlink only covers the name text
+        let padding = " ".repeat(name_length.saturating_sub(result.name.len()));
+
         if colors {
+            // OSC 8 hyperlink: \x1b]8;;URL\x07TEXT\x1b]8;;\x07
+            // Close the hyperlink BEFORE padding to avoid underline extending
             println!(
-                "  {} {} more results...",
-                "...".dimmed(),
-                results.len() - display_count
+                "\x1b]8;;{}\x07{}\x1b]8;;\x07{}{}{}",
+                url,
+                result.name.green(),
+                padding,
+                warning,
+                description,
             );
         } else {
-            println!("  ... {} more results...", results.len() - display_count);
+            println!("{}{}{}{}", result.name, padding, warning, description,);
         }
     }
 
@@ -127,23 +154,18 @@ fn output_json(results: &[libretto_repository::PackageSearchResult]) -> Result<(
             sonic_rs::json!({
                 "name": r.name,
                 "description": r.description,
-                "downloads": r.downloads
+                "url": format!("https://packagist.org/packages/{}", r.name),
+                "repository": r.repository,
+                "downloads": r.downloads,
+                "favers": r.favers,
+                "abandoned": r.abandoned,
+                "replacement": r.replacement
             })
         })
         .collect();
 
     println!("{}", sonic_rs::to_string_pretty(&output)?);
     Ok(())
-}
-
-fn format_downloads(count: u64) -> String {
-    if count >= 1_000_000 {
-        format!("{:.1}M", count as f64 / 1_000_000.0)
-    } else if count >= 1_000 {
-        format!("{:.1}K", count as f64 / 1_000.0)
-    } else {
-        count.to_string()
-    }
 }
 
 fn truncate(s: &str, max_len: usize) -> String {

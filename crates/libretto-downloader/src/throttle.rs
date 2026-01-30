@@ -3,10 +3,10 @@
 //! Provides rate limiting using a token bucket algorithm.
 
 use governor::{
+    Quota, RateLimiter,
     clock::DefaultClock,
     middleware::NoOpMiddleware,
     state::{InMemoryState, NotKeyed},
-    Quota, RateLimiter,
 };
 use std::num::NonZeroU32;
 use std::sync::Arc;

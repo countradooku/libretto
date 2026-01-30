@@ -5,8 +5,8 @@
 
 use bytes::Bytes;
 use moka::sync::Cache;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// L1 in-memory cache entry.
@@ -27,7 +27,7 @@ pub struct L1Entry {
 impl L1Entry {
     /// Create new L1 entry.
     #[must_use]
-    pub fn new(data: Bytes, original_size: u64, compressed: bool, hash: [u8; 32]) -> Self {
+    pub const fn new(data: Bytes, original_size: u64, compressed: bool, hash: [u8; 32]) -> Self {
         Self {
             size: data.len() as u64,
             data,
@@ -163,7 +163,7 @@ impl L1Cache {
 
     /// Get maximum size in bytes.
     #[must_use]
-    pub fn max_size(&self) -> u64 {
+    pub const fn max_size(&self) -> u64 {
         self.max_size
     }
 
@@ -203,7 +203,7 @@ impl L1Cache {
     where
         F: FnMut(&str, &L1Entry),
     {
-        for (key, value) in self.cache.iter() {
+        for (key, value) in &self.cache {
             f(&key, &value);
         }
     }
@@ -226,21 +226,21 @@ impl L1CacheBuilder {
 
     /// Set maximum cache size in bytes.
     #[must_use]
-    pub fn max_size(mut self, size: u64) -> Self {
+    pub const fn max_size(mut self, size: u64) -> Self {
         self.max_size = Some(size);
         self
     }
 
     /// Set time-to-live for entries.
     #[must_use]
-    pub fn ttl(mut self, ttl: Duration) -> Self {
+    pub const fn ttl(mut self, ttl: Duration) -> Self {
         self.ttl = Some(ttl);
         self
     }
 
     /// Set time-to-idle for entries.
     #[must_use]
-    pub fn time_to_idle(mut self, tti: Duration) -> Self {
+    pub const fn time_to_idle(mut self, tti: Duration) -> Self {
         self.time_to_idle = Some(tti);
         self
     }

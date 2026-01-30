@@ -1,5 +1,7 @@
 //! Update command implementation.
 
+use crate::output::{info, success, warning};
+use crate::scripts::{ScriptConfig, run_post_install_scripts, run_pre_install_scripts};
 use anyhow::Result;
 use clap::Args;
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
@@ -35,6 +37,14 @@ pub struct UpdateArgs {
     /// Lock file only (don't install)
     #[arg(long)]
     pub lock: bool,
+
+    /// Run security audit after update
+    #[arg(long)]
+    pub audit: bool,
+
+    /// Fail update if security vulnerabilities are found
+    #[arg(long)]
+    pub fail_on_audit: bool,
 }
 
 /// Run the update command.
@@ -59,6 +69,25 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
 
     if args.dry_run {
         warning("Dry run mode - no changes will be made");
+    }
+
+    // Set up script configuration
+    let script_config = ScriptConfig {
+        working_dir: cwd.clone(),
+        dev_mode: !args.no_dev,
+        ..Default::default()
+    };
+
+    // Run pre-update-cmd scripts
+    if !args.dry_run {
+        if let Some(result) = run_pre_install_scripts(&composer, &script_config, true)? {
+            if !result.success {
+                warning(&format!(
+                    "Pre-update script warning: {}",
+                    result.error.unwrap_or_default()
+                ));
+            }
+        }
     }
 
     // Collect current locked versions
@@ -98,22 +127,21 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
         }
     }
 
-    if !args.no_dev {
-        if let Some(require_dev) = composer.get("require-dev").and_then(|v| v.as_object()) {
-            for (name, constraint) in require_dev {
-                if name.starts_with("php") || name.starts_with("ext-") {
-                    continue;
-                }
-
-                if !args.packages.is_empty()
-                    && !args.packages.iter().any(|p| name.contains(p.as_str()))
-                {
-                    continue;
-                }
-
-                let c = constraint.as_str().unwrap_or("*");
-                requirements.push((name.to_string(), c.to_string(), true));
+    if !args.no_dev
+        && let Some(require_dev) = composer.get("require-dev").and_then(|v| v.as_object())
+    {
+        for (name, constraint) in require_dev {
+            if name.starts_with("php") || name.starts_with("ext-") {
+                continue;
             }
+
+            if !args.packages.is_empty() && !args.packages.iter().any(|p| name.contains(p.as_str()))
+            {
+                continue;
+            }
+
+            let c = constraint.as_str().unwrap_or("*");
+            requirements.push((name.to_string(), c.to_string(), true));
         }
     }
 
@@ -159,7 +187,7 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
                 updates.push((name.clone(), old_version, new_version, *is_dev, changed));
             }
             Err(e) => {
-                warning(&format!("Could not resolve {}: {}", name, e));
+                warning(&format!("Could not resolve {name}: {e}"));
             }
         }
     }
@@ -174,7 +202,7 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
         return Ok(());
     }
 
-    info(&format!("{} package(s) will be updated:", changed_count));
+    info(&format!("{changed_count} package(s) will be updated:"));
     println!();
 
     let mut table = Table::new();
@@ -271,12 +299,112 @@ pub async fn run(args: UpdateArgs) -> Result<()> {
             minimum_stability: None,
             no_progress: false,
             concurrency: 64,
+            audit: args.audit,
+            fail_on_audit: args.fail_on_audit,
+            verify_checksums: false,
         };
 
         crate::commands::install::run(install_args).await?;
+    } else if args.audit {
+        // Run audit on lock file only mode
+        run_security_audit(&lock_path, args.fail_on_audit).await?;
     }
 
-    success(&format!("Updated {} package(s)", changed_count));
+    // Run post-update-cmd scripts
+    if let Some(result) = run_post_install_scripts(&composer, &script_config, true)? {
+        if !result.success {
+            warning(&format!(
+                "Post-update script warning: {}",
+                result.error.unwrap_or_default()
+            ));
+        }
+    }
+
+    success(&format!("Updated {changed_count} package(s)"));
+
+    Ok(())
+}
+
+/// Run security audit on packages in lock file.
+async fn run_security_audit(lock_path: &std::path::Path, fail_on_audit: bool) -> Result<()> {
+    use libretto_audit::Auditor;
+    use libretto_core::PackageId;
+    use semver::Version;
+
+    if !lock_path.exists() {
+        return Ok(());
+    }
+
+    info("Running security audit...");
+
+    let lock_content = std::fs::read_to_string(lock_path)?;
+    let lock: sonic_rs::Value = sonic_rs::from_str(&lock_content)?;
+
+    let mut packages_to_audit: Vec<(PackageId, Version)> = Vec::new();
+
+    for key in ["packages", "packages-dev"] {
+        if let Some(pkgs) = lock.get(key).and_then(|v| v.as_array()) {
+            for pkg in pkgs {
+                let name = pkg.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                let version_str = pkg
+                    .get("version")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim_start_matches('v');
+
+                if let Some(id) = PackageId::parse(name)
+                    && let Ok(ver) = Version::parse(version_str)
+                {
+                    packages_to_audit.push((id, ver));
+                }
+            }
+        }
+    }
+
+    if packages_to_audit.is_empty() {
+        return Ok(());
+    }
+
+    let auditor = Auditor::new().map_err(|e| anyhow::anyhow!("Failed to create auditor: {e}"))?;
+    let report = auditor
+        .audit(&packages_to_audit)
+        .await
+        .map_err(|e| anyhow::anyhow!("Audit failed: {e}"))?;
+
+    if report.vulnerability_count() == 0 {
+        success("No security vulnerabilities found");
+        return Ok(());
+    }
+
+    warning(&format!(
+        "Found {} vulnerabilities in {} packages",
+        report.vulnerability_count(),
+        report.vulnerable_package_count()
+    ));
+
+    for (severity, vulns) in report.by_severity() {
+        let color = severity.color();
+        let reset = "\x1b[0m";
+
+        for vuln in vulns {
+            println!(
+                "  {color}[{}]{reset} {} ({})",
+                severity, vuln.advisory_id, vuln.package
+            );
+            println!("    {}", vuln.title);
+            if let Some(ref fixed) = vuln.fixed_version {
+                println!("    Fixed in: {fixed}");
+            }
+        }
+    }
+
+    if fail_on_audit && report.has_critical() {
+        anyhow::bail!("Critical security vulnerabilities found.");
+    }
+
+    if fail_on_audit && !report.passes() {
+        anyhow::bail!("Security vulnerabilities found.");
+    }
 
     Ok(())
 }

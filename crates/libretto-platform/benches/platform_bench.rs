@@ -1,6 +1,6 @@
 //! Benchmarks for platform compatibility layer.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use libretto_platform::simd::{SimdOps, SimdRuntime};
 
 fn bench_simd_compare_32(c: &mut Criterion) {
@@ -305,7 +305,7 @@ fn bench_cross_path(c: &mut Criterion) {
 }
 
 fn bench_shell_escape(c: &mut Criterion) {
-    use libretto_platform::shell::{escape_shell_arg, ShellType};
+    use libretto_platform::shell::{ShellType, escape_shell_arg};
 
     let mut group = c.benchmark_group("shell_escape");
 

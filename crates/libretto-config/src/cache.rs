@@ -8,8 +8,8 @@ use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher};
 use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Global configuration cache singleton.
@@ -102,12 +102,12 @@ impl ConfigCache {
     #[must_use]
     pub fn get_manifest(&self, path: &Path) -> Option<Arc<ComposerManifest>> {
         // Check mtime first
-        if let Some(mtime) = self.get_mtime(path) {
-            if let Some(entry) = self.manifests.get(path) {
-                // Validate by hash
-                if entry.hash == mtime {
-                    return Some(Arc::clone(&entry.manifest));
-                }
+        if let Some(mtime) = self.get_mtime(path)
+            && let Some(entry) = self.manifests.get(path)
+        {
+            // Validate by hash
+            if entry.hash == mtime {
+                return Some(Arc::clone(&entry.manifest));
             }
         }
         None
@@ -147,10 +147,10 @@ impl ConfigCache {
         self.mtimes.remove(path);
 
         // Invalidate project config if this is a composer.json
-        if path.file_name().map_or(false, |n| n == "composer.json") {
-            if let Some(parent) = path.parent() {
-                self.configs.remove(parent);
-            }
+        if path.file_name().is_some_and(|n| n == "composer.json")
+            && let Some(parent) = path.parent()
+        {
+            self.configs.remove(parent);
         }
 
         // Invalidate global configs if this is in global config dir
@@ -371,7 +371,7 @@ impl CachedConfigManager {
 
     /// Get the underlying cache.
     #[must_use]
-    pub fn cache(&self) -> &'static ConfigCache {
+    pub const fn cache(&self) -> &'static ConfigCache {
         self.cache
     }
 }

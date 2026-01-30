@@ -444,7 +444,7 @@ impl GitRepository {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
-    /// Parse git error output to create appropriate VcsError.
+    /// Parse git error output to create appropriate `VcsError`.
     fn parse_git_error(stderr: &str, url: String) -> VcsError {
         let stderr_lower = stderr.to_lowercase();
 
@@ -623,14 +623,14 @@ impl GitRepository {
     /// Set up SSH command with credentials if needed.
     fn setup_ssh_command(&self) -> Option<String> {
         // Get credentials for any configured remote
-        if let Ok(Some(url)) = self.get_remote_url("origin") {
-            if let Ok(vcs_url) = VcsUrl::parse(&url) {
-                let host = vcs_url.host.as_deref().unwrap_or("");
-                let creds = self.credentials.get_credentials(host);
+        if let Ok(Some(url)) = self.get_remote_url("origin")
+            && let Ok(vcs_url) = VcsUrl::parse(&url)
+        {
+            let host = vcs_url.host.as_deref().unwrap_or("");
+            let creds = self.credentials.get_credentials(host);
 
-                if let VcsCredentials::SshKey { private_key, .. } = creds {
-                    return Some(format!("ssh -i {}", private_key.display()));
-                }
+            if let VcsCredentials::SshKey { private_key, .. } = creds {
+                return Some(format!("ssh -i {}", private_key.display()));
             }
         }
         None
@@ -797,15 +797,15 @@ impl GitRepository {
             .args(["rev-list", "--left-right", "--count", "@{upstream}...HEAD"])
             .output();
 
-        if let Ok(output) = output {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let parts: Vec<&str> = stdout.trim().split_whitespace().collect();
-                if parts.len() == 2 {
-                    status.behind = parts[0].parse().unwrap_or(0);
-                    status.ahead = parts[1].parse().unwrap_or(0);
-                    status.has_remote = true;
-                }
+        if let Ok(output) = output
+            && output.status.success()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let parts: Vec<&str> = stdout.split_whitespace().collect();
+            if parts.len() == 2 {
+                status.behind = parts[0].parse().unwrap_or(0);
+                status.ahead = parts[1].parse().unwrap_or(0);
+                status.has_remote = true;
             }
         }
 
@@ -1046,6 +1046,7 @@ pub struct GitCloneBuilder {
 
 impl GitCloneBuilder {
     /// Create a new clone builder.
+    #[must_use]
     pub fn new(url: VcsUrl, dest: PathBuf) -> Self {
         Self {
             url,
@@ -1065,14 +1066,14 @@ impl GitCloneBuilder {
 
     /// Set clone depth.
     #[must_use]
-    pub fn depth(mut self, depth: u32) -> Self {
+    pub const fn depth(mut self, depth: u32) -> Self {
         self.options.depth = Some(depth);
         self
     }
 
     /// Enable full clone.
     #[must_use]
-    pub fn full_clone(mut self) -> Self {
+    pub const fn full_clone(mut self) -> Self {
         self.options.depth = None;
         self.options.single_branch = false;
         self
@@ -1080,7 +1081,7 @@ impl GitCloneBuilder {
 
     /// Enable recursive submodules.
     #[must_use]
-    pub fn recursive(mut self) -> Self {
+    pub const fn recursive(mut self) -> Self {
         self.options.recursive = true;
         self
     }
@@ -1101,14 +1102,14 @@ impl GitCloneBuilder {
 
     /// Enable LFS.
     #[must_use]
-    pub fn with_lfs(mut self) -> Self {
+    pub const fn with_lfs(mut self) -> Self {
         self.options.lfs = true;
         self
     }
 
     /// Set timeout.
     #[must_use]
-    pub fn timeout(mut self, secs: u64) -> Self {
+    pub const fn timeout(mut self, secs: u64) -> Self {
         self.options.timeout_secs = Some(secs);
         self
     }

@@ -77,11 +77,11 @@ pub async fn run(args: RequireArgs) -> Result<()> {
             (package_spec.clone(), String::new())
         };
 
-        let spinner = Spinner::new(format!("Looking up {}...", name));
+        let spinner = Spinner::new(format!("Looking up {name}..."));
 
         // Validate package exists
         let package_id = libretto_core::PackageId::parse(&name)
-            .ok_or_else(|| anyhow::anyhow!("Invalid package name: {}", name))?;
+            .ok_or_else(|| anyhow::anyhow!("Invalid package name: {name}"))?;
 
         // Find best version
         let version_constraint = if constraint.is_empty() {
@@ -102,7 +102,7 @@ pub async fn run(args: RequireArgs) -> Result<()> {
                     if parts.len() >= 2 {
                         format!("^{}.{}", parts[0], parts[1])
                     } else {
-                        format!("^{}", version_str)
+                        format!("^{version_str}")
                     }
                 } else {
                     constraint.clone()
@@ -118,16 +118,16 @@ pub async fn run(args: RequireArgs) -> Result<()> {
                         dep_label
                     );
                 } else {
-                    println!("  + {} {} as {}", name, save_constraint, dep_label);
+                    println!("  + {name} {save_constraint} as {dep_label}");
                 }
 
                 resolved.push((name, save_constraint));
             }
             Err(e) => {
                 spinner.finish_and_clear();
-                error(&format!("Package '{}' not found: {}", name, e));
+                error(&format!("Package '{name}' not found: {e}"));
                 if !args.dry_run {
-                    anyhow::bail!("Failed to resolve package: {}", name);
+                    anyhow::bail!("Failed to resolve package: {name}");
                 }
             }
         }
@@ -147,10 +147,10 @@ pub async fn run(args: RequireArgs) -> Result<()> {
     // Update composer.json
     let deps = composer.get_mut(dep_type).and_then(|v| v.as_object_mut());
 
-    if deps.is_none() {
-        if let Some(obj) = composer.as_object_mut() {
-            obj.insert(dep_type, sonic_rs::json!({}));
-        }
+    if deps.is_none()
+        && let Some(obj) = composer.as_object_mut()
+    {
+        obj.insert(dep_type, sonic_rs::json!({}));
     }
 
     if let Some(deps) = composer.get_mut(dep_type).and_then(|v| v.as_object_mut()) {
@@ -196,6 +196,8 @@ pub async fn run(args: RequireArgs) -> Result<()> {
             dry_run: false,
             root_reqs: false,
             lock: false,
+            audit: false,
+            fail_on_audit: false,
         };
 
         crate::commands::update::run(update_args).await?;

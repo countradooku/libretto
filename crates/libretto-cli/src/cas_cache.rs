@@ -14,9 +14,10 @@ use std::path::{Path, PathBuf};
 
 /// Global CAS cache location (~/.libretto/cache)
 pub fn cache_dir() -> PathBuf {
-    directories::BaseDirs::new()
-        .map(|d| d.home_dir().join(".libretto").join("cache"))
-        .unwrap_or_else(|| PathBuf::from(".libretto/cache"))
+    directories::BaseDirs::new().map_or_else(
+        || PathBuf::from(".libretto/cache"),
+        |d| d.home_dir().join(".libretto").join("cache"),
+    )
 }
 
 /// Cache for extracted package contents (content-addressable)
@@ -25,7 +26,6 @@ pub fn cas_dir() -> PathBuf {
 }
 
 /// Check if a package is cached (by URL hash)
-#[allow(dead_code)]
 pub fn is_cached(url: &str) -> bool {
     let hash = hash_url(url);
     let marker = cas_dir().join(&hash).join(".complete");
@@ -134,11 +134,67 @@ fn link_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Clear the entire cache
-pub fn clear_cache() -> Result<()> {
+/// Clear the entire cache and return bytes freed
+pub fn clear_cache() -> Result<u64> {
     let cache = cache_dir();
-    if cache.exists() {
-        fs::remove_dir_all(&cache)?;
+    if !cache.exists() {
+        return Ok(0);
     }
-    Ok(())
+
+    // Calculate size before clearing
+    let mut total_bytes: u64 = 0;
+    for entry in walkdir::WalkDir::new(&cache)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+    {
+        if entry.file_type().is_file()
+            && let Ok(meta) = entry.metadata()
+        {
+            total_bytes += meta.len();
+        }
+    }
+
+    fs::remove_dir_all(&cache)?;
+    Ok(total_bytes)
+}
+
+/// Get the size of the CAS cache in bytes
+pub fn cache_size() -> u64 {
+    let cache = cas_dir();
+    if !cache.exists() {
+        return 0;
+    }
+
+    let mut total: u64 = 0;
+    for entry in walkdir::WalkDir::new(&cache)
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+    {
+        if entry.file_type().is_file()
+            && let Ok(meta) = entry.metadata()
+        {
+            total += meta.len();
+        }
+    }
+    total
+}
+
+/// Get the number of cached packages
+pub fn cached_package_count() -> Result<usize> {
+    let cache = cas_dir();
+    if !cache.exists() {
+        return Ok(0);
+    }
+
+    let mut count = 0;
+    for entry in fs::read_dir(&cache)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            // Check for completion marker
+            if entry.path().join(".complete").exists() {
+                count += 1;
+            }
+        }
+    }
+    Ok(count)
 }

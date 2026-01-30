@@ -10,12 +10,12 @@ pub struct ColorConfig {
 
 impl ColorConfig {
     /// Create a new color config
-    pub fn new(enabled: bool) -> Self {
+    pub const fn new(enabled: bool) -> Self {
         Self { enabled }
     }
 
     /// Check if colors are enabled
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.enabled
     }
 }
@@ -32,97 +32,97 @@ pub struct Colors;
 
 impl Colors {
     /// Style for package names
-    pub fn package() -> Style {
+    pub const fn package() -> Style {
         Style::new().green()
     }
 
     /// Style for version strings
-    pub fn version() -> Style {
+    pub const fn version() -> Style {
         Style::new().yellow()
     }
 
     /// Style for success messages
-    pub fn success() -> Style {
+    pub const fn success() -> Style {
         Style::new().green().bold()
     }
 
     /// Style for error messages
-    pub fn error() -> Style {
+    pub const fn error() -> Style {
         Style::new().red().bold()
     }
 
     /// Style for warning messages
-    pub fn warning() -> Style {
+    pub const fn warning() -> Style {
         Style::new().yellow()
     }
 
     /// Style for info messages
-    pub fn info() -> Style {
+    pub const fn info() -> Style {
         Style::new().blue()
     }
 
     /// Style for debug/dim messages
-    pub fn dim() -> Style {
+    pub const fn dim() -> Style {
         Style::new().dimmed()
     }
 
     /// Style for headers
-    pub fn header() -> Style {
+    pub const fn header() -> Style {
         Style::new().cyan().bold()
     }
 
     /// Style for commands
-    pub fn command() -> Style {
+    pub const fn command() -> Style {
         Style::new().magenta()
     }
 
     /// Style for paths
-    pub fn path() -> Style {
+    pub const fn path() -> Style {
         Style::new().cyan()
     }
 
     /// Style for URLs
-    pub fn url() -> Style {
+    pub const fn url() -> Style {
         Style::new().blue().underline()
     }
 
     /// Style for numbers/counts
-    pub fn number() -> Style {
+    pub const fn number() -> Style {
         Style::new().bright_white().bold()
     }
 
     /// Style for critical severity
-    pub fn critical() -> Style {
+    pub const fn critical() -> Style {
         Style::new().bright_red().bold()
     }
 
     /// Style for high severity
-    pub fn high() -> Style {
+    pub const fn high() -> Style {
         Style::new().red()
     }
 
     /// Style for medium severity
-    pub fn medium() -> Style {
+    pub const fn medium() -> Style {
         Style::new().yellow()
     }
 
     /// Style for low severity
-    pub fn low() -> Style {
+    pub const fn low() -> Style {
         Style::new().blue()
     }
 
     /// Style for added items
-    pub fn added() -> Style {
+    pub const fn added() -> Style {
         Style::new().green()
     }
 
     /// Style for removed items
-    pub fn removed() -> Style {
+    pub const fn removed() -> Style {
         Style::new().red()
     }
 
     /// Style for changed items
-    pub fn changed() -> Style {
+    pub const fn changed() -> Style {
         Style::new().yellow()
     }
 }

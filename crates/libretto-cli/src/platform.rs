@@ -101,7 +101,7 @@ pub struct ValidationResult {
 impl ValidationResult {
     /// Check if all requirements are satisfied.
     #[must_use]
-    pub fn is_satisfied(&self) -> bool {
+    pub const fn is_satisfied(&self) -> bool {
         self.errors.is_empty()
     }
 
@@ -277,10 +277,7 @@ impl PlatformValidator {
 
         // If extension exists and constraint is *, it's satisfied
         if constraint == "*" {
-            return Ok((
-                installed.clone(),
-                self.platform.extensions.contains_key(&ext_lower),
-            ));
+            return Ok((installed, self.platform.extensions.contains_key(&ext_lower)));
         }
 
         // Check version constraint
@@ -371,8 +368,7 @@ impl PlatformValidator {
     /// Get version of a specific extension.
     fn get_extension_version(&self, ext_name: &str) -> Option<String> {
         let code = format!(
-            "echo phpversion('{}') ?: (extension_loaded('{}') ? '0.0.0' : '');",
-            ext_name, ext_name
+            "echo phpversion('{ext_name}') ?: (extension_loaded('{ext_name}') ? '0.0.0' : '');"
         );
 
         let output = Command::new(&self.php_binary)
@@ -482,7 +478,7 @@ impl PlatformValidator {
 
     /// Get the detected platform.
     #[must_use]
-    pub fn platform(&self) -> &DetectedPlatform {
+    pub const fn platform(&self) -> &DetectedPlatform {
         &self.platform
     }
 }

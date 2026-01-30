@@ -5,8 +5,8 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use parking_lot::Mutex;
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// Shared progress tracker for multiple concurrent downloads.
@@ -97,6 +97,7 @@ impl ProgressTracker {
     }
 
     /// Start tracking a new download.
+    #[must_use]
     pub fn start_download(
         &self,
         id: &str,

@@ -23,7 +23,7 @@ impl Default for PackagesField {
     }
 }
 
-/// HashMap field that can be "__unset" in minified metadata.
+/// `HashMap` field that can be "__unset" in minified metadata.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum MapOrUnset<K, V>
@@ -61,7 +61,7 @@ where
 
     /// Check if this field is unset.
     #[must_use]
-    pub fn is_unset(&self) -> bool {
+    pub const fn is_unset(&self) -> bool {
         matches!(self, Self::Unset(_))
     }
 }
@@ -159,13 +159,13 @@ impl<T: Clone> VecOrUnset<T> {
 
     /// Check if this field is unset.
     #[must_use]
-    pub fn is_unset(&self) -> bool {
+    pub const fn is_unset(&self) -> bool {
         matches!(self, Self::Unset(_))
     }
 
     /// Check if this vec is empty (either actually empty or unset).
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         match self {
             Self::Vec(v) => v.is_empty(),
             Self::Unset(_) => true,
@@ -250,7 +250,7 @@ impl<T: Clone> ValueOrUnset<T> {
 
     /// Check if this field is unset.
     #[must_use]
-    pub fn is_unset(&self) -> bool {
+    pub const fn is_unset(&self) -> bool {
         matches!(self, Self::Unset(_))
     }
 }
@@ -463,7 +463,7 @@ pub enum AbandonedValue {
 impl AbandonedValue {
     /// Check if package is abandoned.
     #[must_use]
-    pub fn is_abandoned(&self) -> bool {
+    pub const fn is_abandoned(&self) -> bool {
         match self {
             Self::Boolean(b) => *b,
             Self::Replacement(_) => true,
@@ -612,14 +612,14 @@ impl ClassmapOrUnset {
     #[must_use]
     pub fn to_vec(&self) -> Vec<String> {
         match self {
-            Self::Values(vals) => vals.iter().flat_map(|v| v.to_vec()).collect(),
+            Self::Values(vals) => vals.iter().flat_map(ClassmapValue::to_vec).collect(),
             Self::Unset(_) => Vec::new(),
         }
     }
 
     /// Check if empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         match self {
             Self::Values(v) => v.is_empty(),
             Self::Unset(_) => true,
@@ -900,7 +900,7 @@ impl PackageVersionJson {
         let require = self
             .require
             .as_ref()
-            .map(|x| x.as_map())
+            .map(MapOrUnset::as_map)
             .unwrap_or_default();
         for (name, constraint) in &require {
             if let Some(dep_id) = PackageId::parse(name) {
@@ -914,7 +914,7 @@ impl PackageVersionJson {
         let require_dev = self
             .require_dev
             .as_ref()
-            .map(|x| x.as_map())
+            .map(MapOrUnset::as_map)
             .unwrap_or_default();
         for (name, constraint) in &require_dev {
             if let Some(dep_id) = PackageId::parse(name) {
@@ -926,24 +926,24 @@ impl PackageVersionJson {
         }
 
         // Parse dist
-        if let Some(ref dist) = self.dist {
-            if let Ok(url) = Url::parse(&dist.url) {
-                pkg.dist = Some(PackageSource::Dist {
-                    url,
-                    archive_type: dist.archive_type.clone(),
-                    shasum: dist.shasum.clone(),
-                });
-            }
+        if let Some(ref dist) = self.dist
+            && let Ok(url) = Url::parse(&dist.url)
+        {
+            pkg.dist = Some(PackageSource::Dist {
+                url,
+                archive_type: dist.archive_type.clone(),
+                shasum: dist.shasum.clone(),
+            });
         }
 
         // Parse source
-        if let Some(ref source) = self.source {
-            if let Ok(url) = Url::parse(&source.url) {
-                pkg.source = Some(PackageSource::Git {
-                    url,
-                    reference: source.reference.clone(),
-                });
-            }
+        if let Some(ref source) = self.source
+            && let Ok(url) = Url::parse(&source.url)
+        {
+            pkg.source = Some(PackageSource::Git {
+                url,
+                reference: source.reference.clone(),
+            });
         }
 
         // Parse authors
@@ -972,6 +972,7 @@ impl PackageVersionJson {
 /// Expand minified package versions using Composer metadata minifier algorithm.
 ///
 /// See: <https://github.com/composer/metadata-minifier>
+#[must_use]
 pub fn expand_minified_versions(versions: &[PackageVersionJson]) -> Vec<PackageVersionJson> {
     if versions.is_empty() {
         return vec![];
@@ -1154,7 +1155,7 @@ mod tests {
                 // which is WRONG if the intent was "empty dependencies".
                 // Use assertions to verify behavior.
             }
-            Err(e) => println!("Error parsing []: {}", e),
+            Err(e) => println!("Error parsing []: {e}"),
         }
 
         // Case 2: Object {}
@@ -1162,7 +1163,7 @@ mod tests {
         let res_obj: Result<TestStruct, _> = from_str(json_obj);
         match res_obj {
             Ok(v) => println!("Parsed {{}}: {:?}", v.require),
-            Err(e) => println!("Error parsing {{}}: {}", e),
+            Err(e) => println!("Error parsing {{}}: {e}"),
         }
     }
 }

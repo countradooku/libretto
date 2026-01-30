@@ -79,17 +79,17 @@ impl ContentHasher {
 
         // minimum-stability
         if let Some(stability) = minimum_stability {
-            parts.push(format!("\"minimum-stability\":\"{}\"", stability));
+            parts.push(format!("\"minimum-stability\":\"{stability}\""));
         }
 
         // prefer-stable
         if let Some(prefer) = prefer_stable {
-            parts.push(format!("\"prefer-stable\":{}", prefer));
+            parts.push(format!("\"prefer-stable\":{prefer}"));
         }
 
         // prefer-lowest
         if let Some(prefer) = prefer_lowest {
-            parts.push(format!("\"prefer-lowest\":{}", prefer));
+            parts.push(format!("\"prefer-lowest\":{prefer}"));
         }
 
         // platform
@@ -111,7 +111,7 @@ impl ContentHasher {
     }
 }
 
-/// Convert BTreeMap to minimal JSON.
+/// Convert `BTreeMap` to minimal JSON.
 fn btree_to_json(map: &BTreeMap<String, String>) -> String {
     let pairs: Vec<String> = map
         .iter()
@@ -267,12 +267,13 @@ impl ParallelHasher {
 #[inline]
 #[allow(unsafe_code)]
 #[cfg(all(target_arch = "x86_64", target_feature = "avx2"))]
+#[must_use]
 pub fn compare_hashes_simd(a: &[u8; 32], b: &[u8; 32]) -> bool {
     use std::arch::x86_64::{__m256i, _mm256_cmpeq_epi8, _mm256_loadu_si256, _mm256_movemask_epi8};
     // SAFETY: AVX2 is available (checked by cfg), pointers are valid 32-byte aligned arrays
     unsafe {
-        let va = _mm256_loadu_si256(a.as_ptr() as *const __m256i);
-        let vb = _mm256_loadu_si256(b.as_ptr() as *const __m256i);
+        let va = _mm256_loadu_si256(a.as_ptr().cast::<__m256i>());
+        let vb = _mm256_loadu_si256(b.as_ptr().cast::<__m256i>());
         let cmp = _mm256_cmpeq_epi8(va, vb);
         let mask = _mm256_movemask_epi8(cmp);
         mask == -1i32
@@ -301,7 +302,7 @@ pub fn bytes_to_hex(bytes: &[u8]) -> String {
 /// Parse hex string to bytes.
 #[must_use]
 pub fn hex_to_bytes(hex: &str) -> Option<Vec<u8>> {
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return None;
     }
     let mut bytes = Vec::with_capacity(hex.len() / 2);

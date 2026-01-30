@@ -196,7 +196,10 @@ impl DownloadError {
             let code = status.as_u16();
             if code == 404 {
                 return Self::NotFound {
-                    url: err.url().map(|u| u.to_string()).unwrap_or_default(),
+                    url: err
+                        .url()
+                        .map(std::string::ToString::to_string)
+                        .unwrap_or_default(),
                 };
             }
             if code == 401 || code == 403 {
@@ -252,20 +255,20 @@ impl From<url::ParseError> for DownloadError {
 impl From<DownloadError> for libretto_core::Error {
     fn from(err: DownloadError) -> Self {
         match err {
-            DownloadError::Network { message, .. } => libretto_core::Error::Network(message),
+            DownloadError::Network { message, .. } => Self::Network(message),
             DownloadError::ChecksumMismatch {
                 name,
                 expected,
                 actual,
-            } => libretto_core::Error::ChecksumMismatch {
+            } => Self::ChecksumMismatch {
                 name,
                 expected,
                 actual,
             },
-            DownloadError::Archive(msg) => libretto_core::Error::Archive(msg),
-            DownloadError::Vcs(msg) => libretto_core::Error::Vcs(msg),
-            DownloadError::Io { path, message } => libretto_core::Error::Io { path, message },
-            other => libretto_core::Error::Network(other.to_string()),
+            DownloadError::Archive(msg) => Self::Archive(msg),
+            DownloadError::Vcs(msg) => Self::Vcs(msg),
+            DownloadError::Io { path, message } => Self::Io { path, message },
+            other => Self::Network(other.to_string()),
         }
     }
 }

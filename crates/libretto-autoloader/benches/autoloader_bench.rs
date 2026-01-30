@@ -1,6 +1,6 @@
 //! Benchmarks for the autoloader module.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use libretto_autoloader::{PhpParser, Scanner};
 
 fn bench_php_parser(c: &mut Criterion) {

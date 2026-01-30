@@ -9,6 +9,7 @@ authors.workspace = true
 keywords = ["composer", "lockfile", "package-manager", "php", "atomic"]
 categories = ["development-tools", "filesystem"]
 description = "Ultra-high-performance composer.lock file management with atomic updates"
+readme = "README.md"
 
 [dependencies]
 # Internal crates

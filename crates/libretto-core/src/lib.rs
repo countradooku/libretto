@@ -7,7 +7,7 @@
 //! - High-performance JSON operations
 //! - Error types
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 mod error;

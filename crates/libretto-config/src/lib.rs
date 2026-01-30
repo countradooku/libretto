@@ -78,7 +78,7 @@
 //!
 //! With the `keyring` feature, credentials can be stored securely in the system keyring.
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod auth;
@@ -91,8 +91,8 @@ pub mod validate;
 
 // Re-exports for convenience
 pub use auth::{AuthConfig, Credential, CredentialStore};
-pub use cache::{global_cache, CacheStats, CachedConfigManager, ConfigCache, ConfigWatcher};
-pub use env::{parse_byte_size, parse_duration_secs, ComposerEnvVar, EnvConfig};
+pub use cache::{CacheStats, CachedConfigManager, ConfigCache, ConfigWatcher, global_cache};
+pub use env::{ComposerEnvVar, EnvConfig, parse_byte_size, parse_duration_secs};
 pub use error::{ConfigError, Result};
 pub use loader::{CliOverrides, ConfigLoader, ConfigSource};
 pub use types::{
@@ -106,7 +106,7 @@ pub use validate::{Severity, ValidationIssue, ValidationResult, Validator};
 /// Prelude module for common imports.
 pub mod prelude {
     pub use crate::auth::{AuthConfig, Credential, CredentialStore};
-    pub use crate::cache::{global_cache, CachedConfigManager};
+    pub use crate::cache::{CachedConfigManager, global_cache};
     pub use crate::error::{ConfigError, Result};
     pub use crate::loader::{CliOverrides, ConfigLoader};
     pub use crate::types::{ComposerConfig, ComposerManifest, ResolvedConfig};

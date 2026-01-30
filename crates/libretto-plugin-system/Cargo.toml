@@ -1,17 +1,82 @@
 [package]
 name = "libretto-plugin-system"
-description = "Plugin system for Libretto"
+description = "High-performance plugin system for Libretto supporting native Rust and PHP plugins"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
 
 [lints]
 workspace = true
 
 [dependencies]
 libretto-core = { workspace = true }
-tracing = { workspace = true }
+libretto-platform = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true, features = ["full", "process", "sync", "time", "io-util", "net"] }
+
+# JSON parsing (high-performance)
+sonic-rs = { workspace = true }
 serde = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Dynamic library loading
+libloading = { workspace = true }
+
+# Concurrent data structures
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+crossbeam-channel = "0.5"
+
+# Caching
+moka = { workspace = true, features = ["sync", "future"] }
+
+# Filesystem
+walkdir = { workspace = true }
+tempfile = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Versioning
+semver = { workspace = true }
+
+# Fast hashing
+ahash = { workspace = true }
+blake3 = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Bytes for IPC
+bytes = { workspace = true }
+
+# Async utilities
+futures = { workspace = true }
+async-trait = "0.1"
+
+# Once cell
+once_cell = { workspace = true }
+
+# Parallel iteration
+rayon = { workspace = true }
+
+# JSON for PHP IPC
+serde_json = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+tokio-test = "0.4"
+
+[[bench]]
+name = "plugin_bench"
+harness = false

@@ -154,13 +154,13 @@ impl LockfileError {
 
     /// Check if this is a lock timeout error.
     #[must_use]
-    pub fn is_timeout(&self) -> bool {
+    pub const fn is_timeout(&self) -> bool {
         matches!(self, Self::LockTimeout { .. })
     }
 
     /// Check if this is a drift/out-of-date error.
     #[must_use]
-    pub fn is_drift(&self) -> bool {
+    pub const fn is_drift(&self) -> bool {
         matches!(self, Self::ContentHashMismatch { .. })
     }
 }

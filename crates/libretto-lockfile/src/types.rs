@@ -372,7 +372,7 @@ impl PackageDistInfo {
 }
 
 /// Autoload configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct AutoloadConfig {
     /// PSR-4 autoloading.
     #[serde(rename = "psr-4", default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -397,18 +397,6 @@ pub struct AutoloadConfig {
         skip_serializing_if = "Vec::is_empty"
     )]
     pub exclude_from_classmap: Vec<String>,
-}
-
-impl Default for AutoloadConfig {
-    fn default() -> Self {
-        Self {
-            psr4: BTreeMap::new(),
-            psr0: BTreeMap::new(),
-            classmap: Vec::new(),
-            files: Vec::new(),
-            exclude_from_classmap: Vec::new(),
-        }
-    }
 }
 
 /// Autoload path (can be string or array of strings).

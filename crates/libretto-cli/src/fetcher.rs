@@ -15,6 +15,29 @@ use tracing::{debug, trace};
 /// Cache TTL for package metadata (1 hour)
 const METADATA_CACHE_TTL: Duration = Duration::from_secs(3600);
 
+/// Statistics collected during package fetching operations.
+#[derive(Debug, Clone, Default)]
+pub struct FetcherStats {
+    /// Total HTTP requests made.
+    pub requests: u64,
+    /// Total bytes downloaded from network.
+    pub bytes_downloaded: u64,
+    /// Requests served from local cache.
+    pub cache_hits: u64,
+}
+
+impl FetcherStats {
+    /// Calculate cache hit rate as a percentage.
+    pub fn cache_hit_rate(&self) -> f64 {
+        let total = self.requests + self.cache_hits;
+        if total == 0 {
+            0.0
+        } else {
+            (self.cache_hits as f64 / total as f64) * 100.0
+        }
+    }
+}
+
 /// Fast Packagist fetcher with HTTP/2, connection pooling, and metadata caching.
 pub struct Fetcher {
     client: Client,
@@ -51,9 +74,10 @@ impl Fetcher {
             .build()?;
 
         // Set up metadata cache directory
-        let cache_dir = directories::BaseDirs::new()
-            .map(|d| d.home_dir().join(".libretto").join("metadata"))
-            .unwrap_or_else(|| PathBuf::from(".libretto/metadata"));
+        let cache_dir = directories::BaseDirs::new().map_or_else(
+            || PathBuf::from(".libretto/metadata"),
+            |d| d.home_dir().join(".libretto").join("metadata"),
+        );
         let _ = std::fs::create_dir_all(&cache_dir);
 
         Ok(Self {
@@ -66,23 +90,43 @@ impl Fetcher {
         })
     }
 
+    /// Get the total number of HTTP requests made.
+    ///
+    /// This can be used for statistics reporting after fetching operations.
     pub fn request_count(&self) -> u64 {
         self.requests.load(Ordering::Relaxed)
     }
 
+    /// Get the total bytes downloaded from the network.
+    ///
+    /// This can be used for statistics reporting after fetching operations.
     pub fn bytes_downloaded(&self) -> u64 {
         self.bytes.load(Ordering::Relaxed)
     }
 
+    /// Get the number of cache hits (requests served from local cache).
+    ///
+    /// This can be used for statistics reporting after fetching operations.
     pub fn cache_hits(&self) -> u64 {
         self.cache_hits.load(Ordering::Relaxed)
+    }
+
+    /// Get fetch statistics as a tuple: (requests, `bytes_downloaded`, `cache_hits`).
+    ///
+    /// Convenience method for getting all stats at once for reporting.
+    pub fn stats(&self) -> FetcherStats {
+        FetcherStats {
+            requests: self.request_count(),
+            bytes_downloaded: self.bytes_downloaded(),
+            cache_hits: self.cache_hits(),
+        }
     }
 
     /// Get cache file path for a package
     fn cache_path(&self, name: &str) -> PathBuf {
         // Replace / with ~ for filesystem safety
         let safe_name = name.replace('/', "~");
-        self.cache_dir.join(format!("{}.json", safe_name))
+        self.cache_dir.join(format!("{safe_name}.json"))
     }
 
     /// Try to read from cache
@@ -185,12 +229,35 @@ impl Fetcher {
                         .iter()
                         .map(|(k, v)| (k.clone(), v.clone()))
                         .collect(),
+                    suggest: v
+                        .suggest
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
                     dist_url: v.dist.as_ref().map(|d| d.url.clone()),
                     dist_type: v.dist.as_ref().map(|d| d.dist_type.clone()),
                     dist_shasum: v.dist.as_ref().and_then(|d| d.shasum.clone()),
                     source_url: v.source.as_ref().map(|s| s.url.clone()),
                     source_type: v.source.as_ref().map(|s| s.source_type.clone()),
                     source_reference: v.source.as_ref().map(|s| s.reference.clone()),
+                    // Full metadata
+                    package_type: v.package_type.clone(),
+                    description: v.description.clone(),
+                    homepage: v.homepage.clone(),
+                    license: v.license.clone(),
+                    authors: v.authors.as_ref().and_then(|a| sonic_rs::to_value(a).ok()),
+                    keywords: v.keywords.clone(),
+                    time: v.time.clone(),
+                    autoload: v.autoload.as_ref().and_then(|a| sonic_rs::to_value(a).ok()),
+                    autoload_dev: v
+                        .autoload_dev
+                        .as_ref()
+                        .and_then(|a| sonic_rs::to_value(a).ok()),
+                    extra: v.extra.clone(),
+                    support: v.support.as_ref().and_then(|s| sonic_rs::to_value(s).ok()),
+                    funding: v.funding.as_ref().and_then(|f| sonic_rs::to_value(f).ok()),
+                    notification_url: v.notification_url.clone(),
+                    bin: v.bin.clone(),
                 })
             })
             .collect();
@@ -233,10 +300,49 @@ struct PackagistVersion {
     replace: HashMap<String, String>,
     #[serde(default, deserialize_with = "deserialize_deps")]
     provide: HashMap<String, String>,
+    #[serde(default, deserialize_with = "deserialize_deps")]
+    suggest: HashMap<String, String>,
     #[serde(default)]
     dist: Option<PackagistDist>,
     #[serde(default)]
     source: Option<PackagistSource>,
+    // Additional metadata - these fields are part of the Packagist API response
+    // and are kept for completeness/debugging even if not directly used
+    #[serde(default)]
+    #[allow(dead_code)] // Part of API response, used for Debug trait
+    name: Option<String>,
+    #[serde(default, rename = "type")]
+    package_type: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default)]
+    homepage: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    license: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "deserialize_authors")]
+    authors: Option<Vec<PackagistAuthor>>,
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    keywords: Option<Vec<String>>,
+    #[serde(default)]
+    time: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_autoload")]
+    autoload: Option<PackagistAutoload>,
+    #[serde(
+        default,
+        rename = "autoload-dev",
+        deserialize_with = "deserialize_autoload"
+    )]
+    autoload_dev: Option<PackagistAutoload>,
+    #[serde(default)]
+    extra: Option<sonic_rs::Value>,
+    #[serde(default)]
+    support: Option<PackagistSupport>,
+    #[serde(default, deserialize_with = "deserialize_funding")]
+    funding: Option<Vec<PackagistFunding>>,
+    #[serde(default, rename = "notification-url")]
+    notification_url: Option<String>,
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    bin: Option<Vec<String>>,
 }
 
 fn deserialize_deps<'de, D>(deserializer: D) -> Result<HashMap<String, String>, D::Error>
@@ -304,4 +410,345 @@ struct PackagistSource {
     source_type: String,
     url: String,
     reference: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+struct PackagistAuthor {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    homepage: Option<String>,
+    #[serde(default)]
+    role: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+struct PackagistAutoload {
+    #[serde(
+        default,
+        rename = "psr-4",
+        deserialize_with = "deserialize_autoload_map"
+    )]
+    psr4: Option<HashMap<String, sonic_rs::Value>>,
+    #[serde(
+        default,
+        rename = "psr-0",
+        deserialize_with = "deserialize_autoload_map"
+    )]
+    psr0: Option<HashMap<String, sonic_rs::Value>>,
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    classmap: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    files: Option<Vec<String>>,
+    #[serde(
+        default,
+        rename = "exclude-from-classmap",
+        deserialize_with = "deserialize_string_vec"
+    )]
+    exclude_from_classmap: Option<Vec<String>>,
+}
+
+fn deserialize_autoload<'de, D>(deserializer: D) -> Result<Option<PackagistAutoload>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+
+    struct AutoloadVisitor;
+
+    impl<'de> Visitor<'de> for AutoloadVisitor {
+        type Value = Option<PackagistAutoload>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a struct, null, or \"__unset\" string")
+        }
+
+        fn visit_str<E>(self, _v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            // "__unset" or any string -> None
+            Ok(None)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_map<M>(self, map: M) -> Result<Self::Value, M::Error>
+        where
+            M: de::MapAccess<'de>,
+        {
+            // Deserialize the struct using serde's Deserialize implementation
+            let autoload =
+                serde::Deserialize::deserialize(de::value::MapAccessDeserializer::new(map))?;
+            Ok(Some(autoload))
+        }
+    }
+
+    deserializer.deserialize_any(AutoloadVisitor)
+}
+
+fn deserialize_autoload_map<'de, D>(
+    deserializer: D,
+) -> Result<Option<HashMap<String, sonic_rs::Value>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+
+    struct AutoloadMapVisitor;
+
+    impl<'de> Visitor<'de> for AutoloadMapVisitor {
+        type Value = Option<HashMap<String, sonic_rs::Value>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a map, null, or \"__unset\" string")
+        }
+
+        fn visit_str<E>(self, _v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+        where
+            M: de::MapAccess<'de>,
+        {
+            let mut result = HashMap::new();
+            while let Some((key, value)) = map.next_entry::<String, sonic_rs::Value>()? {
+                result.insert(key, value);
+            }
+            Ok(Some(result))
+        }
+    }
+
+    deserializer.deserialize_any(AutoloadMapVisitor)
+}
+
+fn deserialize_string_vec<'de, D>(deserializer: D) -> Result<Option<Vec<String>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+
+    struct StringVecVisitor;
+
+    impl<'de> Visitor<'de> for StringVecVisitor {
+        type Value = Option<Vec<String>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence, null, or \"__unset\" string")
+        }
+
+        fn visit_str<E>(self, _v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
+        where
+            S: de::SeqAccess<'de>,
+        {
+            let mut result = Vec::new();
+            // Handle both strings and nested arrays (e.g., classmap can be [["path"]] or ["path"])
+            loop {
+                // Try to get a string first
+                match seq.next_element::<String>() {
+                    Ok(Some(s)) => {
+                        result.push(s);
+                    }
+                    Ok(None) => break,
+                    Err(_) => {
+                        // Not a string - try as nested array of strings
+                        if let Ok(Some(arr)) = seq.next_element::<Vec<String>>() {
+                            result.extend(arr);
+                        } else {
+                            // Skip unknown element
+                            let _ = seq.next_element::<serde::de::IgnoredAny>();
+                        }
+                    }
+                }
+            }
+            Ok(Some(result))
+        }
+    }
+
+    deserializer.deserialize_any(StringVecVisitor)
+}
+
+fn deserialize_authors<'de, D>(deserializer: D) -> Result<Option<Vec<PackagistAuthor>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+
+    struct AuthorsVisitor;
+
+    impl<'de> Visitor<'de> for AuthorsVisitor {
+        type Value = Option<Vec<PackagistAuthor>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence, null, or \"__unset\" string")
+        }
+
+        fn visit_str<E>(self, _v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
+        where
+            S: de::SeqAccess<'de>,
+        {
+            let mut result = Vec::new();
+            while let Some(value) = seq.next_element::<PackagistAuthor>()? {
+                result.push(value);
+            }
+            Ok(Some(result))
+        }
+    }
+
+    deserializer.deserialize_any(AuthorsVisitor)
+}
+
+fn deserialize_funding<'de, D>(deserializer: D) -> Result<Option<Vec<PackagistFunding>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::{self, Visitor};
+
+    struct FundingVisitor;
+
+    impl<'de> Visitor<'de> for FundingVisitor {
+        type Value = Option<Vec<PackagistFunding>>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a sequence, null, or \"__unset\" string")
+        }
+
+        fn visit_str<E>(self, _v: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_none<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_unit<E>(self) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            Ok(None)
+        }
+
+        fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
+        where
+            S: de::SeqAccess<'de>,
+        {
+            let mut result = Vec::new();
+            while let Some(value) = seq.next_element::<PackagistFunding>()? {
+                result.push(value);
+            }
+            Ok(Some(result))
+        }
+    }
+
+    deserializer.deserialize_any(FundingVisitor)
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+struct PackagistSupport {
+    #[serde(default)]
+    email: Option<String>,
+    #[serde(default)]
+    issues: Option<String>,
+    #[serde(default)]
+    forum: Option<String>,
+    #[serde(default)]
+    wiki: Option<String>,
+    #[serde(default)]
+    irc: Option<String>,
+    #[serde(default)]
+    source: Option<String>,
+    #[serde(default)]
+    docs: Option<String>,
+    #[serde(default)]
+    rss: Option<String>,
+    #[serde(default)]
+    chat: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+struct PackagistFunding {
+    #[serde(default, rename = "type")]
+    funding_type: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
 }

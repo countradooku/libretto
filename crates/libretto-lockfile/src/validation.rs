@@ -6,7 +6,7 @@
 //! - Manual edit detection
 //! - Out-of-date warning
 
-use crate::hash::{verify_hash, ContentHasher};
+use crate::hash::{ContentHasher, verify_hash};
 use crate::types::{ComposerLock, LockedPackage};
 use ahash::AHashSet;
 use std::collections::BTreeMap;
@@ -25,7 +25,7 @@ pub struct ValidationResult {
 impl ValidationResult {
     /// Create a valid result.
     #[must_use]
-    pub fn valid() -> Self {
+    pub const fn valid() -> Self {
         Self {
             valid: true,
             errors: Vec::new(),
@@ -56,12 +56,12 @@ impl ValidationResult {
 
     /// Check if there are any issues (errors or warnings).
     #[must_use]
-    pub fn has_issues(&self) -> bool {
+    pub const fn has_issues(&self) -> bool {
         !self.errors.is_empty() || !self.warnings.is_empty()
     }
 
     /// Merge another result into this one.
-    pub fn merge(&mut self, other: ValidationResult) {
+    pub fn merge(&mut self, other: Self) {
         if !other.valid {
             self.valid = false;
         }
@@ -92,20 +92,19 @@ pub enum ValidationError {
 impl std::fmt::Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MissingField(field) => write!(f, "Missing required field: {}", field),
-            Self::DuplicatePackage(name) => write!(f, "Duplicate package: {}", name),
+            Self::MissingField(field) => write!(f, "Missing required field: {field}"),
+            Self::DuplicatePackage(name) => write!(f, "Duplicate package: {name}"),
             Self::InvalidPackage { name, reason } => {
-                write!(f, "Invalid package '{}': {}", name, reason)
+                write!(f, "Invalid package '{name}': {reason}")
             }
-            Self::InvalidStructure(reason) => write!(f, "Invalid structure: {}", reason),
+            Self::InvalidStructure(reason) => write!(f, "Invalid structure: {reason}"),
             Self::CircularDependency(cycle) => {
                 write!(f, "Circular dependency: {}", cycle.join(" -> "))
             }
             Self::ContentHashMismatch { expected, actual } => {
                 write!(
                     f,
-                    "Content hash mismatch: expected {}, got {}",
-                    expected, actual
+                    "Content hash mismatch: expected {expected}, got {actual}"
                 )
             }
             Self::MissingDependency {
@@ -114,8 +113,7 @@ impl std::fmt::Display for ValidationError {
             } => {
                 write!(
                     f,
-                    "Package '{}' requires '{}' which is not in lock file",
-                    package, dependency
+                    "Package '{package}' requires '{dependency}' which is not in lock file"
                 )
             }
         }
@@ -144,28 +142,23 @@ pub enum ValidationWarning {
 impl std::fmt::Display for ValidationWarning {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::OutOfDate(msg) => write!(f, "Lock file may be out of date: {}", msg),
-            Self::ManualEdit(msg) => write!(f, "Manual edit detected: {}", msg),
+            Self::OutOfDate(msg) => write!(f, "Lock file may be out of date: {msg}"),
+            Self::ManualEdit(msg) => write!(f, "Manual edit detected: {msg}"),
             Self::MissingOptionalField { package, field } => {
-                write!(f, "Package '{}' missing optional field: {}", package, field)
+                write!(f, "Package '{package}' missing optional field: {field}")
             }
             Self::UnusualVersion { package, version } => {
                 write!(
                     f,
-                    "Package '{}' has unusual version format: {}",
-                    package, version
+                    "Package '{package}' has unusual version format: {version}"
                 )
             }
             Self::DevInProduction(name) => {
-                write!(
-                    f,
-                    "Dev package '{}' may be in production dependencies",
-                    name
-                )
+                write!(f, "Dev package '{name}' may be in production dependencies")
             }
-            Self::DeprecatedPackage(name) => write!(f, "Package '{}' is deprecated", name),
+            Self::DeprecatedPackage(name) => write!(f, "Package '{name}' is deprecated"),
             Self::MissingInstallSource(name) => {
-                write!(f, "Package '{}' has no source or dist", name)
+                write!(f, "Package '{name}' has no source or dist")
             }
         }
     }
@@ -187,7 +180,7 @@ pub struct Validator {
 impl Validator {
     /// Create a new validator with default settings.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             check_circular: true,
             check_dependencies: true,
@@ -198,7 +191,7 @@ impl Validator {
 
     /// Create a strict validator that checks everything.
     #[must_use]
-    pub fn strict() -> Self {
+    pub const fn strict() -> Self {
         Self {
             check_circular: true,
             check_dependencies: true,
@@ -208,13 +201,13 @@ impl Validator {
     }
 
     /// Enable/disable circular dependency check.
-    pub fn check_circular(&mut self, enable: bool) -> &mut Self {
+    pub const fn check_circular(&mut self, enable: bool) -> &mut Self {
         self.check_circular = enable;
         self
     }
 
     /// Enable/disable dependency completeness check.
-    pub fn check_dependencies(&mut self, enable: bool) -> &mut Self {
+    pub const fn check_dependencies(&mut self, enable: bool) -> &mut Self {
         self.check_dependencies = enable;
         self
     }
@@ -251,6 +244,7 @@ impl Validator {
     }
 
     /// Validate against composer.json dependencies.
+    #[must_use]
     pub fn validate_against_manifest(
         &self,
         lock: &ComposerLock,
@@ -473,10 +467,10 @@ fn find_cycle<'a>(
     path.push(current);
 
     for &(from, to) in graph {
-        if from == current {
-            if let Some(cycle) = find_cycle(graph, to, visited, path) {
-                return Some(cycle);
-            }
+        if from == current
+            && let Some(cycle) = find_cycle(graph, to, visited, path)
+        {
+            return Some(cycle);
         }
     }
 
@@ -545,7 +539,7 @@ pub struct DriftResult {
 impl DriftResult {
     /// Check if there are any changes.
     #[must_use]
-    pub fn has_changes(&self) -> bool {
+    pub const fn has_changes(&self) -> bool {
         !self.is_current
             || !self.added_deps.is_empty()
             || !self.removed_deps.is_empty()
@@ -641,15 +635,15 @@ impl ManualEditDetector {
             "This file is @generated automatically",
         ];
 
-        if lock.readme.len() != 3 {
-            signs.push("Readme section has unexpected number of lines".to_string());
-        } else {
+        if lock.readme.len() == 3 {
             for (i, expected) in expected_readme.iter().enumerate() {
                 if lock.readme.get(i).map(String::as_str) != Some(*expected) {
                     signs.push(format!("Readme line {} differs from expected", i + 1));
                     break;
                 }
             }
+        } else {
+            signs.push("Readme section has unexpected number of lines".to_string());
         }
 
         // Check for unsorted packages
@@ -669,8 +663,7 @@ impl ManualEditDetector {
         for (name, &flag) in &lock.stability_flags {
             if ![0, 5, 10, 15, 20].contains(&flag) {
                 signs.push(format!(
-                    "Package '{}' has unusual stability flag: {}",
-                    name, flag
+                    "Package '{name}' has unusual stability flag: {flag}"
                 ));
             }
         }
@@ -697,7 +690,7 @@ fn is_valid_version(version: &str) -> bool {
 
     // Semver-like
     if v.split('.')
-        .all(|part| part.chars().take_while(|c| c.is_ascii_digit()).count() > 0)
+        .all(|part| part.chars().take_while(char::is_ascii_digit).count() > 0)
     {
         return true;
     }
@@ -749,10 +742,12 @@ mod tests {
 
         let result = Validator::new().validate(&lock);
         assert!(!result.valid);
-        assert!(result
-            .errors
-            .iter()
-            .any(|e| matches!(e, ValidationError::DuplicatePackage(_))));
+        assert!(
+            result
+                .errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::DuplicatePackage(_)))
+        );
     }
 
     #[test]

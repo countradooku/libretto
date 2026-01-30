@@ -69,24 +69,23 @@ pub async fn run(args: CheckPlatformReqsArgs) -> Result<()> {
         // Get requirements from require section
         if let Some(require) = composer.get("require").and_then(|v| v.as_object()) {
             for (name, version) in require {
-                if name.starts_with("php") || name.starts_with("ext-") || name.starts_with("lib-") {
-                    if let Some(v) = version.as_str() {
-                        requirements.insert(name.to_string(), v.to_string());
-                    }
+                if (name.starts_with("php") || name.starts_with("ext-") || name.starts_with("lib-"))
+                    && let Some(v) = version.as_str()
+                {
+                    requirements.insert(name.to_string(), v.to_string());
                 }
             }
         }
 
         // Get platform config
-        if let Some(config) = composer.get("config").and_then(|v| v.as_object()) {
-            if let Some(platform) = config
+        if let Some(config) = composer.get("config").and_then(|v| v.as_object())
+            && let Some(platform) = config
                 .get(&"platform".to_string())
                 .and_then(|v| v.as_object())
-            {
-                for (name, version) in platform {
-                    if let Some(v) = version.as_str() {
-                        requirements.insert(name.to_string(), v.to_string());
-                    }
+        {
+            for (name, version) in platform {
+                if let Some(v) = version.as_str() {
+                    requirements.insert(name.to_string(), v.to_string());
                 }
             }
         }
@@ -104,8 +103,7 @@ pub async fn run(args: CheckPlatformReqsArgs) -> Result<()> {
         let installed = get_installed_version(name, args.no_check_php);
         let satisfied = installed
             .as_ref()
-            .map(|v| check_constraint(v, required))
-            .unwrap_or(false);
+            .is_some_and(|v| check_constraint(v, required));
 
         checks.push(PlatformCheck {
             name: name.clone(),
@@ -217,10 +215,7 @@ fn get_php_version() -> Option<String> {
 
 /// Get PHP extension version
 fn get_extension_version(ext: &str) -> Option<String> {
-    let code = format!(
-        "echo phpversion('{}') ?: (extension_loaded('{}') ? '1.0.0' : '');",
-        ext, ext
-    );
+    let code = format!("echo phpversion('{ext}') ?: (extension_loaded('{ext}') ? '1.0.0' : '');");
     Command::new("php")
         .args(["-r", &code])
         .output()
@@ -305,41 +300,38 @@ fn check_single_constraint(version: &semver::Version, constraint: &str) -> bool 
 
     if let Some(rest) = constraint.strip_prefix(">=") {
         let req_ver = parse_version(rest.trim());
-        return req_ver.map(|r| version >= &r).unwrap_or(true);
+        return req_ver.is_none_or(|r| version >= &r);
     }
 
     if let Some(rest) = constraint.strip_prefix("<=") {
         let req_ver = parse_version(rest.trim());
-        return req_ver.map(|r| version <= &r).unwrap_or(true);
+        return req_ver.is_none_or(|r| version <= &r);
     }
 
     if let Some(rest) = constraint.strip_prefix('>') {
         let req_ver = parse_version(rest.trim());
-        return req_ver.map(|r| version > &r).unwrap_or(true);
+        return req_ver.is_none_or(|r| version > &r);
     }
 
     if let Some(rest) = constraint.strip_prefix('<') {
         let req_ver = parse_version(rest.trim());
-        return req_ver.map(|r| version < &r).unwrap_or(true);
+        return req_ver.is_none_or(|r| version < &r);
     }
 
     if let Some(rest) = constraint.strip_prefix('^') {
         let req_ver = parse_version(rest.trim());
-        return req_ver
-            .map(|r| version.major == r.major && version >= &r)
-            .unwrap_or(true);
+        return req_ver.is_none_or(|r| version.major == r.major && version >= &r);
     }
 
     if let Some(rest) = constraint.strip_prefix('~') {
         let req_ver = parse_version(rest.trim());
         return req_ver
-            .map(|r| version.major == r.major && version.minor == r.minor && version >= &r)
-            .unwrap_or(true);
+            .is_none_or(|r| version.major == r.major && version.minor == r.minor && version >= &r);
     }
 
     // Exact match
     let req_ver = parse_version(constraint);
-    req_ver.map(|r| version == &r).unwrap_or(true)
+    req_ver.is_none_or(|r| version == &r)
 }
 
 fn parse_version(s: &str) -> Option<semver::Version> {

@@ -287,7 +287,7 @@ impl Source {
 
     /// Create a dist source with explicit archive type.
     #[must_use]
-    pub fn dist_with_type(url: Url, archive_type: ArchiveType) -> Self {
+    pub const fn dist_with_type(url: Url, archive_type: ArchiveType) -> Self {
         Self::Dist { url, archive_type }
     }
 
@@ -302,7 +302,7 @@ impl Source {
 
     /// Create a local path source.
     #[must_use]
-    pub fn path(path: PathBuf, symlink: bool) -> Self {
+    pub const fn path(path: PathBuf, symlink: bool) -> Self {
         Self::Path { path, symlink }
     }
 
@@ -320,7 +320,7 @@ impl Source {
 
     /// Get the URL if this is a network source.
     #[must_use]
-    pub fn url(&self) -> Option<&Url> {
+    pub const fn url(&self) -> Option<&Url> {
         match self {
             Self::Dist { url, .. }
             | Self::Git { url, .. }

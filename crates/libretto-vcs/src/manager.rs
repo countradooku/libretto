@@ -86,7 +86,7 @@ impl VcsManager {
 
     /// Set maximum parallel operations.
     #[must_use]
-    pub fn with_max_parallel(mut self, max: usize) -> Self {
+    pub const fn with_max_parallel(mut self, max: usize) -> Self {
         self.max_parallel = max;
         self
     }
@@ -149,11 +149,11 @@ impl VcsManager {
 
         // Apply reference cache if available
         let mut options = options.clone();
-        if let Some(ref cache) = self.reference_cache {
-            if let Some(ref_path) = cache.get_reference(&vcs_url) {
-                options.reference = Some(ref_path);
-                debug!(url, "using reference repository");
-            }
+        if let Some(ref cache) = self.reference_cache
+            && let Some(ref_path) = cache.get_reference(&vcs_url)
+        {
+            options.reference = Some(ref_path);
+            debug!(url, "using reference repository");
         }
 
         let repo = GitRepository::clone_with_credentials(
@@ -176,7 +176,7 @@ impl VcsManager {
 
     /// Clone an SVN repository.
     fn clone_svn(&self, url: &str, dest: &Path, reference: Option<&VcsRef>) -> Result<CloneResult> {
-        let revision = reference.map(|r| r.as_str());
+        let revision = reference.map(super::types::VcsRef::as_str);
         let repo = SvnRepository::checkout(url, dest, revision)?;
         let commit = repo.revision()?;
 
@@ -218,6 +218,7 @@ impl VcsManager {
     ///
     /// # Errors
     /// Individual errors are returned in the result.
+    #[must_use]
     pub fn clone_many(&self, requests: Vec<CloneRequest>) -> ParallelCloneResult {
         let mut cloner = ParallelCloner::new()
             .with_credentials(Arc::clone(&self.credentials))
@@ -366,6 +367,7 @@ impl VcsManager {
     /// Warm up reference cache for a list of URLs.
     ///
     /// Pre-caches bare repositories for faster subsequent clones.
+    #[must_use]
     pub fn warm_cache(&self, urls: &[&str]) -> Vec<Result<PathBuf>> {
         let Some(ref cache) = self.reference_cache else {
             return urls
@@ -399,7 +401,7 @@ impl VcsManager {
 
     /// Get credential manager.
     #[must_use]
-    pub fn credentials(&self) -> &Arc<CredentialManager> {
+    pub const fn credentials(&self) -> &Arc<CredentialManager> {
         &self.credentials
     }
 
@@ -462,7 +464,7 @@ pub trait Repository: std::fmt::Debug + Send + Sync {
 
 impl Repository for GitRepository {
     fn path(&self) -> &Path {
-        GitRepository::path(self)
+        Self::path(self)
     }
 
     fn vcs_type(&self) -> VcsType {
@@ -474,11 +476,11 @@ impl Repository for GitRepository {
     }
 
     fn status(&self) -> Result<RepoStatus> {
-        GitRepository::status(self)
+        Self::status(self)
     }
 
     fn is_dirty(&self) -> Result<bool> {
-        GitRepository::is_dirty(self)
+        Self::is_dirty(self)
     }
 
     fn update(&self) -> Result<()> {
@@ -488,7 +490,7 @@ impl Repository for GitRepository {
 
 impl Repository for SvnRepository {
     fn path(&self) -> &Path {
-        SvnRepository::path(self)
+        Self::path(self)
     }
 
     fn vcs_type(&self) -> VcsType {
@@ -500,21 +502,21 @@ impl Repository for SvnRepository {
     }
 
     fn status(&self) -> Result<RepoStatus> {
-        SvnRepository::status(self)
+        Self::status(self)
     }
 
     fn is_dirty(&self) -> Result<bool> {
-        SvnRepository::is_dirty(self)
+        Self::is_dirty(self)
     }
 
     fn update(&self) -> Result<()> {
-        SvnRepository::update(self, None)
+        Self::update(self, None)
     }
 }
 
 impl Repository for HgRepository {
     fn path(&self) -> &Path {
-        HgRepository::path(self)
+        Self::path(self)
     }
 
     fn vcs_type(&self) -> VcsType {
@@ -526,11 +528,11 @@ impl Repository for HgRepository {
     }
 
     fn status(&self) -> Result<RepoStatus> {
-        HgRepository::status(self)
+        Self::status(self)
     }
 
     fn is_dirty(&self) -> Result<bool> {
-        HgRepository::is_dirty(self)
+        Self::is_dirty(self)
     }
 
     fn update(&self) -> Result<()> {
@@ -540,7 +542,7 @@ impl Repository for HgRepository {
 
 impl Repository for FossilRepository {
     fn path(&self) -> &Path {
-        FossilRepository::path(self)
+        Self::path(self)
     }
 
     fn vcs_type(&self) -> VcsType {
@@ -548,21 +550,21 @@ impl Repository for FossilRepository {
     }
 
     fn current_commit(&self) -> Result<String> {
-        let status = FossilRepository::status(self)?;
+        let status = Self::status(self)?;
         Ok(status.head)
     }
 
     fn status(&self) -> Result<RepoStatus> {
-        FossilRepository::status(self)
+        Self::status(self)
     }
 
     fn is_dirty(&self) -> Result<bool> {
-        FossilRepository::is_dirty(self)
+        Self::is_dirty(self)
     }
 
     fn update(&self) -> Result<()> {
         self.pull()?;
-        FossilRepository::update(self)
+        Self::update(self)
     }
 }
 

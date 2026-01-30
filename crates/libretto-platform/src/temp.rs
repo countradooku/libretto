@@ -82,7 +82,7 @@ impl TempFile {
     fn create_temp_file(dir: &Path, prefix: &str, suffix: &str) -> Result<Self> {
         // Ensure directory exists
         if !dir.exists() {
-            fs::create_dir_all(dir).map_err(|e| PlatformError::io(dir, e))?;
+            fs::create_dir_all(dir).map_err(|e| PlatformError::io(dir, &e))?;
         }
 
         // Generate unique name
@@ -101,14 +101,14 @@ impl TempFile {
             .write(true)
             .create_new(true)
             .open(&path)
-            .map_err(|e| PlatformError::io(&path, e))?;
+            .map_err(|e| PlatformError::io(&path, &e))?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             // Set restrictive permissions (owner only)
             fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
-                .map_err(|e| PlatformError::io(&path, e))?;
+                .map_err(|e| PlatformError::io(&path, &e))?;
         }
 
         debug!(path = %path.display(), "Created temp file");
@@ -129,13 +129,13 @@ impl TempFile {
 
     /// Get the file handle for writing.
     #[must_use]
-    pub fn file(&mut self) -> Option<&mut File> {
+    pub const fn file(&mut self) -> Option<&mut File> {
         self.file.as_mut()
     }
 
     /// Take ownership of the file handle.
     #[must_use]
-    pub fn take_file(&mut self) -> Option<File> {
+    pub const fn take_file(&mut self) -> Option<File> {
         self.file.take()
     }
 
@@ -146,17 +146,19 @@ impl TempFile {
     pub fn write_all(&mut self, data: &[u8]) -> Result<()> {
         if let Some(ref mut file) = self.file {
             file.write_all(data)
-                .map_err(|e| PlatformError::io(&self.path, e))?;
-            file.flush().map_err(|e| PlatformError::io(&self.path, e))?;
+                .map_err(|e| PlatformError::io(&self.path, &e))?;
+            file.flush()
+                .map_err(|e| PlatformError::io(&self.path, &e))?;
         } else {
             // Reopen file
             let mut file = OpenOptions::new()
                 .write(true)
                 .open(&self.path)
-                .map_err(|e| PlatformError::io(&self.path, e))?;
+                .map_err(|e| PlatformError::io(&self.path, &e))?;
             file.write_all(data)
-                .map_err(|e| PlatformError::io(&self.path, e))?;
-            file.flush().map_err(|e| PlatformError::io(&self.path, e))?;
+                .map_err(|e| PlatformError::io(&self.path, &e))?;
+            file.flush()
+                .map_err(|e| PlatformError::io(&self.path, &e))?;
         }
         Ok(())
     }
@@ -166,7 +168,7 @@ impl TempFile {
     /// # Errors
     /// Returns error if read fails.
     pub fn read(&self) -> Result<Vec<u8>> {
-        fs::read(&self.path).map_err(|e| PlatformError::io(&self.path, e))
+        fs::read(&self.path).map_err(|e| PlatformError::io(&self.path, &e))
     }
 
     /// Read the temp file as string.
@@ -174,11 +176,11 @@ impl TempFile {
     /// # Errors
     /// Returns error if read fails or content is not UTF-8.
     pub fn read_string(&self) -> Result<String> {
-        fs::read_to_string(&self.path).map_err(|e| PlatformError::io(&self.path, e))
+        fs::read_to_string(&self.path).map_err(|e| PlatformError::io(&self.path, &e))
     }
 
     /// Persist the temp file (don't delete on drop).
-    pub fn persist(&mut self) {
+    pub const fn persist(&mut self) {
         self.persisted = true;
         self.delete_on_drop = false;
     }
@@ -195,7 +197,7 @@ impl TempFile {
         drop(self.file.take());
 
         let dest = dest.as_ref();
-        fs::rename(&self.path, dest).map_err(|e| PlatformError::io(&self.path, e))?;
+        fs::rename(&self.path, dest).map_err(|e| PlatformError::io(&self.path, &e))?;
 
         debug!(from = %self.path.display(), to = %dest.display(), "Persisted temp file");
 
@@ -211,13 +213,13 @@ impl TempFile {
         drop(self.file.take());
 
         if self.path.exists() {
-            fs::remove_file(&self.path).map_err(|e| PlatformError::io(&self.path, e))?;
+            fs::remove_file(&self.path).map_err(|e| PlatformError::io(&self.path, &e))?;
         }
         Ok(())
     }
 
     /// Keep the temp file (don't delete on drop), but mark as not persisted.
-    pub fn keep(&mut self) {
+    pub const fn keep(&mut self) {
         self.delete_on_drop = false;
     }
 }
@@ -282,7 +284,7 @@ impl TempDir {
 
         // Ensure parent exists
         if !parent.exists() {
-            fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, e))?;
+            fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, &e))?;
         }
 
         // Generate unique name
@@ -297,13 +299,13 @@ impl TempDir {
         let path = parent.join(dirname);
 
         // Create directory
-        fs::create_dir(&path).map_err(|e| PlatformError::io(&path, e))?;
+        fs::create_dir(&path).map_err(|e| PlatformError::io(&path, &e))?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
-                .map_err(|e| PlatformError::io(&path, e))?;
+                .map_err(|e| PlatformError::io(&path, &e))?;
         }
 
         debug!(path = %path.display(), "Created temp directory");
@@ -331,7 +333,7 @@ impl TempDir {
             .write(true)
             .create_new(true)
             .open(&path)
-            .map_err(|e| PlatformError::io(&path, e))?;
+            .map_err(|e| PlatformError::io(&path, &e))?;
 
         Ok(TempFile {
             path,
@@ -347,7 +349,7 @@ impl TempDir {
     /// Returns error if directory cannot be created.
     pub fn create_dir(&self, name: &str) -> Result<PathBuf> {
         let path = self.path.join(name);
-        fs::create_dir(&path).map_err(|e| PlatformError::io(&path, e))?;
+        fs::create_dir(&path).map_err(|e| PlatformError::io(&path, &e))?;
         Ok(path)
     }
 
@@ -358,7 +360,7 @@ impl TempDir {
     }
 
     /// Persist the temp directory (don't delete on drop).
-    pub fn persist(&mut self) {
+    pub const fn persist(&mut self) {
         self.persisted = true;
         self.delete_on_drop = false;
     }
@@ -372,7 +374,7 @@ impl TempDir {
         self.delete_on_drop = false;
 
         let dest = dest.as_ref();
-        fs::rename(&self.path, dest).map_err(|e| PlatformError::io(&self.path, e))?;
+        fs::rename(&self.path, dest).map_err(|e| PlatformError::io(&self.path, &e))?;
 
         debug!(from = %self.path.display(), to = %dest.display(), "Persisted temp directory");
 
@@ -387,13 +389,13 @@ impl TempDir {
         self.delete_on_drop = false;
 
         if self.path.exists() {
-            fs::remove_dir_all(&self.path).map_err(|e| PlatformError::io(&self.path, e))?;
+            fs::remove_dir_all(&self.path).map_err(|e| PlatformError::io(&self.path, &e))?;
         }
         Ok(())
     }
 
     /// Keep the temp directory (don't delete on drop).
-    pub fn keep(&mut self) {
+    pub const fn keep(&mut self) {
         self.delete_on_drop = false;
     }
 }
@@ -424,7 +426,7 @@ pub struct TempManager {
 impl TempManager {
     /// Create a new temp manager.
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             tracked: Mutex::new(Vec::new()),
             cleanup_enabled: true,
@@ -434,8 +436,8 @@ impl TempManager {
     /// Get the global temp manager.
     #[must_use]
     pub fn global() -> &'static Self {
-        static MANAGER: once_cell::sync::Lazy<TempManager> =
-            once_cell::sync::Lazy::new(TempManager::new);
+        static MANAGER: std::sync::LazyLock<TempManager> =
+            std::sync::LazyLock::new(TempManager::new);
         &MANAGER
     }
 
@@ -480,12 +482,12 @@ impl TempManager {
     }
 
     /// Disable cleanup (useful for debugging).
-    pub fn disable_cleanup(&mut self) {
+    pub const fn disable_cleanup(&mut self) {
         self.cleanup_enabled = false;
     }
 
     /// Enable cleanup.
-    pub fn enable_cleanup(&mut self) {
+    pub const fn enable_cleanup(&mut self) {
         self.cleanup_enabled = true;
     }
 
@@ -504,10 +506,10 @@ impl TempManager {
                     fs::remove_file(&path)
                 };
 
-                if let Err(e) = result {
-                    if e.kind() != io::ErrorKind::NotFound {
-                        warn!(path = %path.display(), error = %e, "Failed to clean up");
-                    }
+                if let Err(e) = &result
+                    && e.kind() != io::ErrorKind::NotFound
+                {
+                    warn!(path = %path.display(), error = %e, "Failed to clean up");
                 }
             }
         }
@@ -539,7 +541,7 @@ impl Drop for TempManager {
 pub fn temp_dir() -> Result<PathBuf> {
     let dir = std::env::temp_dir();
     if !dir.exists() {
-        fs::create_dir_all(&dir).map_err(|e| PlatformError::io(&dir, e))?;
+        fs::create_dir_all(&dir).map_err(|e| PlatformError::io(&dir, &e))?;
     }
     Ok(dir)
 }

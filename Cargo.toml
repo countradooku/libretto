@@ -15,12 +15,13 @@ members = [
     "crates/libretto-audit",
     "crates/libretto-lockfile",
     "crates/libretto-cli",
+    "crates/libretto-bench",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.89"
 license = "MIT"
 repository = "https://github.com/libretto-pm/libretto"
 authors = ["Libretto Contributors"]
@@ -47,7 +48,13 @@ libretto-lockfile = { path = "crates/libretto-lockfile" }
 tokio = { version = "1.35", features = ["full", "parking_lot"] }
 
 # CLI
-clap = { version = "4.4", features = ["derive", "env", "unicode", "wrap_help", "string"] }
+clap = { version = "4.4", features = [
+    "derive",
+    "env",
+    "unicode",
+    "wrap_help",
+    "string",
+] }
 
 # Parallelism
 rayon = "1.8"
@@ -65,7 +72,7 @@ ahash = "0.8"
 blake3 = "1.5"
 
 # Error handling
-thiserror = "1.0"
+thiserror = "2.0"
 anyhow = "1.0"
 
 # JSON (high-performance)
@@ -104,7 +111,13 @@ async-compression = { version = "0.4", features = [
     "xz",
     "bzip2",
 ] }
-async_zip = { version = "0.0.17", features = ["tokio", "deflate", "bzip2", "zstd", "lzma"] }
+async_zip = { version = "0.0.17", features = [
+    "tokio",
+    "deflate",
+    "bzip2",
+    "zstd",
+    "lzma",
+] }
 tokio-tar = "0.3"
 
 # Additional hashing
@@ -138,7 +151,11 @@ libloading = "0.8"
 mimalloc = { version = "0.1", default-features = false }
 
 # Archive handling
-zip = { version = "2.0", default-features = false, features = ["deflate", "bzip2", "zstd"] }
+zip = { version = "2.0", default-features = false, features = [
+    "deflate",
+    "bzip2",
+    "zstd",
+] }
 tar = "0.4"
 flate2 = "1.0"
 
@@ -161,7 +178,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 url = { version = "2.5", features = ["serde"] }
 
 # Time
-chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+chrono = { version = "0.4", default-features = false, features = [
+    "clock",
+    "serde",
+    "std",
+] }
 
 # Terminal UI
 indicatif = { version = "0.17", features = ["rayon"] }
@@ -184,12 +205,19 @@ hex = "0.4"
 base64 = "0.22"
 subtle = "2.5"
 ed25519-dalek = { version = "2.1", features = ["std", "rand_core"] }
-sequoia-openpgp = { version = "1.20", default-features = false, features = ["crypto-rust", "allow-experimental-crypto", "allow-variable-time-crypto"] }
+sequoia-openpgp = { version = "1.20", default-features = false, features = [
+    "crypto-rust",
+    "allow-experimental-crypto",
+    "allow-variable-time-crypto",
+] }
 keyring = "2.3"
 zeroize = "1.7"
 rustix = { version = "0.38", features = ["fs"] }
 libc = "0.2"
-windows = { version = "0.52", features = ["Win32_Storage_FileSystem", "Win32_Security"] }
+windows = { version = "0.52", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+] }
 
 # Once cell
 once_cell = "1.19"
@@ -212,11 +240,18 @@ unsafe_code = "deny"
 missing_debug_implementations = "warn"
 
 [workspace.lints.clippy]
-all = "warn"
-pedantic = "warn"
-nursery = "warn"
-cargo = "warn"
+# Lint groups at lower priority so individual lints can override
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+cargo = { level = "warn", priority = -1 }
+# Individual lint overrides
 unwrap_used = "warn"
+# Allow multiple crate versions - caused by transitive dependencies
+# that we cannot control (hashbrown, thiserror versions from upstream)
+multiple_crate_versions = "allow"
+# Module naming - we intentionally use descriptive module names
+module_name_repetitions = "allow"
 
 [profile.release]
 lto = "fat"

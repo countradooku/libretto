@@ -22,7 +22,7 @@ struct FundingInfo {
 }
 
 /// Run the fund command
-pub async fn run(args: FundArgs) -> Result<()> {
+pub fn run(args: FundArgs) -> Result<()> {
     use crate::output::{header, info};
     use owo_colors::OwoColorize;
 
@@ -44,20 +44,20 @@ pub async fn run(args: FundArgs) -> Result<()> {
             for pkg in packages {
                 let name = pkg.get("name").and_then(|v| v.as_str()).unwrap_or("");
 
-                if let Some(funding) = pkg.get("funding") {
-                    if let Some(funding_array) = funding.as_array() {
-                        for fund in funding_array {
-                            let fund_type =
-                                fund.get("type").and_then(|v| v.as_str()).unwrap_or("other");
-                            let url = fund.get("url").and_then(|v| v.as_str()).unwrap_or("");
+                if let Some(funding) = pkg.get("funding")
+                    && let Some(funding_array) = funding.as_array()
+                {
+                    for fund in funding_array {
+                        let fund_type =
+                            fund.get("type").and_then(|v| v.as_str()).unwrap_or("other");
+                        let url = fund.get("url").and_then(|v| v.as_str()).unwrap_or("");
 
-                            if !url.is_empty() {
-                                funding_info.push(FundingInfo {
-                                    package: name.to_string(),
-                                    funding_type: fund_type.to_string(),
-                                    url: url.to_string(),
-                                });
-                            }
+                        if !url.is_empty() {
+                            funding_info.push(FundingInfo {
+                                package: name.to_string(),
+                                funding_type: fund_type.to_string(),
+                                url: url.to_string(),
+                            });
                         }
                     }
                 }
@@ -106,7 +106,7 @@ pub async fn run(args: FundArgs) -> Result<()> {
         if colors {
             println!("  {}", package.green().bold());
         } else {
-            println!("  {}", package);
+            println!("  {package}");
         }
 
         for fund in funds {

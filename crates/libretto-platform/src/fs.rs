@@ -58,7 +58,7 @@ impl CrossPath {
         &self.inner
     }
 
-    /// Get as PathBuf.
+    /// Get as `PathBuf`.
     #[must_use]
     pub fn to_path_buf(&self) -> PathBuf {
         self.inner.clone()
@@ -104,7 +104,7 @@ impl CrossPath {
     /// Get the parent directory.
     #[must_use]
     pub fn parent(&self) -> Option<Self> {
-        self.inner.parent().map(|p| Self::new(p))
+        self.inner.parent().map(Self::new)
     }
 
     /// Join with another path component.
@@ -160,7 +160,7 @@ impl CrossPath {
         self.inner
             .canonicalize()
             .map(Self::new)
-            .map_err(|e| PlatformError::io(&self.inner, e))
+            .map_err(|e| PlatformError::io(&self.inner, &e))
     }
 
     fn normalize_path(path: &Path) -> (PathBuf, bool) {
@@ -243,7 +243,7 @@ pub enum LinkType {
 impl LinkType {
     /// Check if this link type is supported on the current platform.
     #[must_use]
-    pub fn is_supported(&self) -> bool {
+    pub const fn is_supported(&self) -> bool {
         match self {
             Self::Symbolic | Self::Hard => true,
             Self::Junction => cfg!(windows),
@@ -286,10 +286,8 @@ impl AtomicFile {
         debug!(target = %target.display(), "Creating atomic file writer");
 
         // Ensure parent directory exists
-        if let Some(parent) = target.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, e))?;
-            }
+        if let Some(parent) = target.parent().filter(|p| !p.exists()) {
+            fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, &e))?;
         }
 
         // Acquire exclusive lock
@@ -307,7 +305,7 @@ impl AtomicFile {
 
     /// Disable backup creation.
     #[must_use]
-    pub fn no_backup(mut self) -> Self {
+    pub const fn no_backup(mut self) -> Self {
         self.create_backup = false;
         self
     }
@@ -330,34 +328,32 @@ impl AtomicFile {
                 .create(true)
                 .truncate(true)
                 .open(&self.temp_path)
-                .map_err(|e| PlatformError::io(&self.temp_path, e))?;
+                .map_err(|e| PlatformError::io(&self.temp_path, &e))?;
 
             file.write_all(content)
-                .map_err(|e| PlatformError::io(&self.temp_path, e))?;
+                .map_err(|e| PlatformError::io(&self.temp_path, &e))?;
 
             // Sync to disk
             file.sync_all()
-                .map_err(|e| PlatformError::io(&self.temp_path, e))?;
+                .map_err(|e| PlatformError::io(&self.temp_path, &e))?;
         }
 
         // Create backup if requested and target exists
         let had_existing = self.target.exists();
         if had_existing && self.create_backup {
             fs::copy(&self.target, &self.backup_path)
-                .map_err(|e| PlatformError::io(&self.backup_path, e))?;
+                .map_err(|e| PlatformError::io(&self.backup_path, &e))?;
             trace!(backup = %self.backup_path.display(), "Created backup");
         }
 
         // Atomic rename
         fs::rename(&self.temp_path, &self.target)
-            .map_err(|e| PlatformError::io(&self.target, e))?;
+            .map_err(|e| PlatformError::io(&self.target, &e))?;
 
         // Sync parent directory on Unix
         #[cfg(unix)]
-        if let Some(parent) = self.target.parent() {
-            if let Ok(dir) = File::open(parent) {
-                let _ = dir.sync_all();
-            }
+        if let Some(dir) = self.target.parent().and_then(|p| File::open(p).ok()) {
+            let _ = dir.sync_all();
         }
 
         debug!(target = %self.target.display(), "Atomic write completed");
@@ -386,30 +382,30 @@ impl AtomicFile {
 
     fn temp_path_for(target: &Path) -> PathBuf {
         let mut temp = target.to_path_buf();
-        let ext = temp
-            .extension()
-            .map(|e| format!("{}.tmp", e.to_string_lossy()))
-            .unwrap_or_else(|| "tmp".to_string());
+        let ext = temp.extension().map_or_else(
+            || "tmp".to_string(),
+            |e| format!("{}.tmp", e.to_string_lossy()),
+        );
         temp.set_extension(ext);
         temp
     }
 
     fn lock_path_for(target: &Path) -> PathBuf {
         let mut lock = target.to_path_buf();
-        let ext = lock
-            .extension()
-            .map(|e| format!("{}.lock", e.to_string_lossy()))
-            .unwrap_or_else(|| "lock".to_string());
+        let ext = lock.extension().map_or_else(
+            || "lock".to_string(),
+            |e| format!("{}.lock", e.to_string_lossy()),
+        );
         lock.set_extension(ext);
         lock
     }
 
     fn backup_path_for(target: &Path) -> PathBuf {
         let mut backup = target.to_path_buf();
-        let ext = backup
-            .extension()
-            .map(|e| format!("{}.bak", e.to_string_lossy()))
-            .unwrap_or_else(|| "bak".to_string());
+        let ext = backup.extension().map_or_else(
+            || "bak".to_string(),
+            |e| format!("{}.bak", e.to_string_lossy()),
+        );
         backup.set_extension(ext);
         backup
     }
@@ -418,10 +414,8 @@ impl AtomicFile {
         use fs2::FileExt;
 
         // Ensure parent exists
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, e))?;
-            }
+        if let Some(parent) = path.parent().filter(|p| !p.exists()) {
+            fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, &e))?;
         }
 
         let file = OpenOptions::new()
@@ -430,7 +424,7 @@ impl AtomicFile {
             .create(true)
             .truncate(false)
             .open(path)
-            .map_err(|e| PlatformError::io(path, e))?;
+            .map_err(|e| PlatformError::io(path, &e))?;
 
         let start = std::time::Instant::now();
         loop {
@@ -448,7 +442,7 @@ impl AtomicFile {
                     }
                     std::thread::sleep(Duration::from_millis(10));
                 }
-                Err(e) => return Err(PlatformError::io(path, e)),
+                Err(e) => return Err(PlatformError::io(path, &e)),
             }
         }
     }
@@ -477,6 +471,7 @@ pub struct AtomicWriteResult {
 }
 
 /// File system operations trait.
+#[allow(clippy::missing_errors_doc)]
 pub trait FileSystemOps {
     /// Create a symbolic link.
     fn create_symlink(target: &Path, link: &Path) -> Result<()>;
@@ -538,14 +533,14 @@ impl FileSystemOps for PlatformFs {
     }
 
     fn read_link(path: &Path) -> Result<PathBuf> {
-        fs::read_link(path).map_err(|e| PlatformError::io(path, e))
+        fs::read_link(path).map_err(|e| PlatformError::io(path, &e))
     }
 
     #[cfg(unix)]
     fn set_permissions(path: &Path, mode: u32) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
         let permissions = fs::Permissions::from_mode(mode);
-        fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, e))
+        fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, &e))
     }
 
     #[cfg(windows)]
@@ -553,24 +548,24 @@ impl FileSystemOps for PlatformFs {
         // Windows doesn't have Unix-style permissions
         // We can only set read-only flag
         let mut permissions = fs::metadata(path)
-            .map_err(|e| PlatformError::io(path, e))?
+            .map_err(|e| PlatformError::io(path, &e))?
             .permissions();
 
         // If no write bits are set (mode & 0o222 == 0), make read-only
         permissions.set_readonly((mode & 0o222) == 0);
-        fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, e))
+        fs::set_permissions(path, permissions).map_err(|e| PlatformError::io(path, &e))
     }
 
     #[cfg(unix)]
     fn get_permissions(path: &Path) -> Result<u32> {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         Ok(metadata.permissions().mode())
     }
 
     #[cfg(windows)]
     fn get_permissions(path: &Path) -> Result<u32> {
-        let metadata = fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         // Return Unix-like permissions based on read-only status
         if metadata.permissions().readonly() {
             Ok(0o444) // Read-only
@@ -581,10 +576,8 @@ impl FileSystemOps for PlatformFs {
 
     fn copy_file(src: &Path, dst: &Path) -> Result<u64> {
         // Ensure parent directory exists
-        if let Some(parent) = dst.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, e))?;
-            }
+        if let Some(parent) = dst.parent().filter(|p| !p.exists()) {
+            fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, &e))?;
         }
 
         #[cfg(unix)]
@@ -599,15 +592,13 @@ impl FileSystemOps for PlatformFs {
         }
 
         // Fallback to standard copy
-        fs::copy(src, dst).map_err(|e| PlatformError::io(src, e))
+        fs::copy(src, dst).map_err(|e| PlatformError::io(src, &e))
     }
 
     fn move_file(src: &Path, dst: &Path) -> Result<()> {
         // Ensure parent directory exists
-        if let Some(parent) = dst.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, e))?;
-            }
+        if let Some(parent) = dst.parent().filter(|p| !p.exists()) {
+            fs::create_dir_all(parent).map_err(|e| PlatformError::io(parent, &e))?;
         }
 
         // Try rename first (same filesystem)
@@ -617,7 +608,7 @@ impl FileSystemOps for PlatformFs {
 
         // Cross-filesystem move: copy then delete
         Self::copy_file(src, dst)?;
-        fs::remove_file(src).map_err(|e| PlatformError::io(src, e))?;
+        fs::remove_file(src).map_err(|e| PlatformError::io(src, &e))?;
         Ok(())
     }
 
@@ -627,9 +618,9 @@ impl FileSystemOps for PlatformFs {
         }
 
         if path.is_dir() {
-            fs::remove_dir_all(path).map_err(|e| PlatformError::io(path, e))
+            fs::remove_dir_all(path).map_err(|e| PlatformError::io(path, &e))
         } else {
-            fs::remove_file(path).map_err(|e| PlatformError::io(path, e))
+            fs::remove_file(path).map_err(|e| PlatformError::io(path, &e))
         }
     }
 }
@@ -677,7 +668,10 @@ impl PlatformFs {
                 break;
             }
 
-            copied += result as u64;
+            #[allow(clippy::cast_sign_loss)] // result is checked to be >= 0 above
+            {
+                copied += result as u64;
+            }
         }
 
         Ok(copied)
@@ -717,7 +711,7 @@ pub mod windows {
     /// Get Windows file attributes.
     pub fn get_file_attributes(path: &Path) -> Result<u32> {
         use std::os::windows::fs::MetadataExt;
-        let metadata = fs::metadata(path).map_err(|e| PlatformError::io(path, e))?;
+        let metadata = fs::metadata(path).map_err(|e| PlatformError::io(path, &e))?;
         Ok(metadata.file_attributes())
     }
 
@@ -741,7 +735,7 @@ pub mod windows {
         if result != 0 {
             Ok(())
         } else {
-            Err(PlatformError::io(path, std::io::Error::last_os_error()))
+            Err(PlatformError::io(path, &std::io::Error::last_os_error()))
         }
     }
 
@@ -761,6 +755,7 @@ pub mod windows {
 }
 
 /// Case-sensitive path comparison helper.
+#[must_use]
 pub fn paths_equal(a: &Path, b: &Path, case_sensitive: bool) -> bool {
     if case_sensitive {
         a == b

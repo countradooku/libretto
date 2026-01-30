@@ -2,7 +2,6 @@
 
 use crate::error::{Result, VcsError};
 use crate::types::VcsType;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -24,19 +23,19 @@ pub enum GitProtocol {
 impl GitProtocol {
     /// Check if this protocol requires authentication.
     #[must_use]
-    pub fn requires_auth(&self) -> bool {
+    pub const fn requires_auth(&self) -> bool {
         matches!(self, Self::Https | Self::Ssh)
     }
 
     /// Check if this is a secure protocol.
     #[must_use]
-    pub fn is_secure(&self) -> bool {
+    pub const fn is_secure(&self) -> bool {
         matches!(self, Self::Https | Self::Ssh)
     }
 
     /// Get the default port for this protocol.
     #[must_use]
-    pub fn default_port(&self) -> Option<u16> {
+    pub const fn default_port(&self) -> Option<u16> {
         match self {
             Self::Https => Some(443),
             Self::Ssh => Some(22),
@@ -96,7 +95,7 @@ impl GitHosting {
 
     /// Get the archive download URL pattern for this hosting service.
     #[must_use]
-    pub fn archive_url_pattern(&self) -> Option<&'static str> {
+    pub const fn archive_url_pattern(&self) -> Option<&'static str> {
         match self {
             Self::GitHub => Some("https://github.com/{owner}/{repo}/archive/{ref}.zip"),
             Self::GitLab => {
@@ -136,27 +135,27 @@ pub struct VcsUrl {
 }
 
 // Regex patterns for URL parsing
-static SSH_URL_REGEX: Lazy<Regex> = Lazy::new(|| {
+static SSH_URL_REGEX: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
     Regex::new(r"^(?:(?P<user>[^@]+)@)?(?P<host>[^:/]+):(?P<path>.+)$").expect("invalid ssh regex")
 });
 
-static GITHUB_SHORTHAND: Lazy<Regex> = Lazy::new(|| {
+static GITHUB_SHORTHAND: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
     // Only matches owner/repo without any prefix (no colons, no @)
     Regex::new(r"^(?P<owner>[a-zA-Z0-9_.-]+)/(?P<repo>[a-zA-Z0-9_.-]+)(?:\.git)?$")
         .expect("invalid github regex")
 });
 
-static GITHUB_EXPLICIT_SHORTHAND: Lazy<Regex> = Lazy::new(|| {
+static GITHUB_EXPLICIT_SHORTHAND: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
     Regex::new(r"^github:(?P<owner>[^/]+)/(?P<repo>[^/]+)(?:\.git)?$")
         .expect("invalid github explicit regex")
 });
 
-static GITLAB_SHORTHAND: Lazy<Regex> = Lazy::new(|| {
+static GITLAB_SHORTHAND: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
     Regex::new(r"^gitlab:(?P<owner>[^/]+)/(?P<repo>[^/]+)(?:\.git)?$")
         .expect("invalid gitlab regex")
 });
 
-static BITBUCKET_SHORTHAND: Lazy<Regex> = Lazy::new(|| {
+static BITBUCKET_SHORTHAND: std::sync::LazyLock<Regex> = std::sync::LazyLock::new(|| {
     Regex::new(r"^bitbucket:(?P<owner>[^/]+)/(?P<repo>[^/]+)(?:\.git)?$")
         .expect("invalid bitbucket regex")
 });
@@ -281,8 +280,7 @@ impl VcsUrl {
             let (owner, repo) = Self::extract_owner_repo(&path);
             let hosting = host
                 .as_deref()
-                .map(GitHosting::from_host)
-                .unwrap_or(GitHosting::Other);
+                .map_or(GitHosting::Other, GitHosting::from_host);
 
             return Ok(Self {
                 original: url.to_string(),
@@ -311,8 +309,7 @@ impl VcsUrl {
             let (owner, repo) = Self::extract_owner_repo(&path);
             let hosting = host
                 .as_deref()
-                .map(GitHosting::from_host)
-                .unwrap_or(GitHosting::Other);
+                .map_or(GitHosting::Other, GitHosting::from_host);
 
             let normalized = format!(
                 "ssh://{}@{}/{}",
@@ -433,7 +430,7 @@ impl VcsUrl {
 
     /// Check if this URL requires authentication.
     #[must_use]
-    pub fn requires_auth(&self) -> bool {
+    pub const fn requires_auth(&self) -> bool {
         self.protocol.requires_auth()
     }
 }

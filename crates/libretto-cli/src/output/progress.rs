@@ -25,9 +25,11 @@ pub enum ProgressStyle {
 
 impl ProgressStyle {
     /// Get the indicatif template for this style
-    fn template(&self, unicode: bool) -> &'static str {
+    const fn template(&self, unicode: bool) -> &'static str {
         match self {
-            Self::Bar if unicode => "{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)",
+            Self::Bar if unicode => {
+                "{spinner:.green} [{bar:40.cyan/blue}] {pos}/{len} ({percent}%)"
+            }
             Self::Bar => "{spinner} [{bar:40}] {pos}/{len} ({percent}%)",
             Self::Download if unicode => {
                 "{spinner:.green} {msg:.cyan} [{bar:30.green/dim}] {bytes}/{total_bytes} ({bytes_per_sec})"
@@ -47,7 +49,7 @@ impl ProgressStyle {
     }
 
     /// Get spinner characters
-    fn spinner_chars(&self, unicode: bool) -> &'static str {
+    const fn spinner_chars(&self, unicode: bool) -> &'static str {
         if unicode {
             "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
         } else {
@@ -65,7 +67,7 @@ impl ProgressStyle {
     }
 }
 
-/// Wrapper around indicatif ProgressBar with our styling
+/// Wrapper around indicatif `ProgressBar` with our styling
 pub struct ProgressBar {
     inner: IndicatifProgressBar,
 }
@@ -87,7 +89,7 @@ impl ProgressBar {
         }
     }
 
-    /// Create a progress bar from indicatif (for MultiProgress)
+    /// Create a progress bar from indicatif (for `MultiProgress`)
     pub fn from_indicatif(pb: IndicatifProgressBar, style: ProgressStyle) -> Self {
         let unicode = crate::output::unicode_enabled();
         pb.set_style(style.to_indicatif(unicode));
@@ -141,7 +143,7 @@ impl ProgressBar {
     }
 
     /// Get the inner indicatif progress bar
-    pub fn inner(&self) -> &IndicatifProgressBar {
+    pub const fn inner(&self) -> &IndicatifProgressBar {
         &self.inner
     }
 }
@@ -237,7 +239,7 @@ impl MultiProgress {
     }
 
     /// Get the inner indicatif multi-progress
-    pub fn inner(&self) -> &IndicatifMultiProgress {
+    pub const fn inner(&self) -> &IndicatifMultiProgress {
         &self.inner
     }
 }

@@ -129,9 +129,9 @@ impl LiveProgress {
                     format_bytes(bytes)
                 )
             } else if cached > 0 {
-                format!(" {} packages (from cache)", total)
+                format!(" {total} packages (from cache)")
             } else {
-                format!(" {} packages", total)
+                format!(" {total} packages")
             };
             println!("{} {}{}", "✔".green().bold(), message, stats.dimmed());
         } else {
@@ -268,7 +268,7 @@ fn render_frame(state: &ProgressState, frame: usize) {
         Phase::Done => String::new(),
     };
 
-    print!("\r\x1b[K{}", line);
+    print!("\r\x1b[K{line}");
     let _ = stdout().flush();
 }
 
@@ -295,7 +295,7 @@ fn format_duration(duration: Duration) -> String {
     if secs < 1.0 {
         format!("{:.0}ms", secs * 1000.0)
     } else {
-        format!("{:.1}s", secs)
+        format!("{secs:.1}s")
     }
 }
 
@@ -304,7 +304,7 @@ fn format_bytes(bytes: u64) -> String {
     const MB: u64 = KB * 1024;
 
     if bytes < KB {
-        format!("{} B", bytes)
+        format!("{bytes} B")
     } else if bytes < MB {
         format!("{:.1} KB", bytes as f64 / KB as f64)
     } else {

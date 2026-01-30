@@ -120,6 +120,9 @@ pub async fn run(args: ReinstallArgs) -> Result<()> {
         minimum_stability: None,
         no_progress: false,
         concurrency: 64,
+        audit: false,
+        fail_on_audit: false,
+        verify_checksums: false,
     };
 
     spinner.finish_and_clear();
@@ -140,7 +143,7 @@ fn matches_glob(name: &str, pattern: &str) -> bool {
         .replace('.', "\\.")
         .replace('*', ".*")
         .replace('?', ".");
-    regex::Regex::new(&format!("^{}$", regex_pattern))
+    regex::Regex::new(&format!("^{regex_pattern}$"))
         .map(|r| r.is_match(name))
         .unwrap_or(false)
 }

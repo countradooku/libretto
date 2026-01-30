@@ -58,7 +58,7 @@ pub async fn run(args: InitArgs) -> Result<()> {
             .ok()
             .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
             .unwrap_or_else(|| "my-project".to_string());
-        format!("vendor/{}", dir_name)
+        format!("vendor/{dir_name}")
     });
 
     let content = format!(

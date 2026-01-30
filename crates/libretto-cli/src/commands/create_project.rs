@@ -4,6 +4,8 @@ use anyhow::{Context, Result};
 use clap::Args;
 use std::path::PathBuf;
 
+use crate::scripts::{self, ScriptConfig};
+
 /// Arguments for the create-project command
 #[derive(Args, Debug, Clone)]
 pub struct CreateProjectArgs {
@@ -91,26 +93,24 @@ pub async fn run(args: CreateProjectArgs) -> Result<()> {
     info(&format!("Directory: {}", project_dir.display()));
 
     // Check if directory exists
-    if project_dir.exists() {
-        if project_dir.read_dir()?.next().is_some() {
-            if args.ask {
-                use crate::output::prompt::Confirm;
-                let confirm = Confirm::new(format!(
-                    "Directory '{}' already exists and is not empty. Remove existing files?",
-                    project_dir.display()
-                ))
-                .default(false)
-                .prompt()?;
+    if project_dir.exists() && project_dir.read_dir()?.next().is_some() {
+        if args.ask {
+            use crate::output::prompt::Confirm;
+            let confirm = Confirm::new(format!(
+                "Directory '{}' already exists and is not empty. Remove existing files?",
+                project_dir.display()
+            ))
+            .default(false)
+            .prompt()?;
 
-                if !confirm {
-                    anyhow::bail!("Aborted");
-                }
-            } else {
-                anyhow::bail!(
-                    "Directory '{}' already exists and is not empty",
-                    project_dir.display()
-                );
+            if !confirm {
+                anyhow::bail!("Aborted");
             }
+        } else {
+            anyhow::bail!(
+                "Directory '{}' already exists and is not empty",
+                project_dir.display()
+            );
         }
     }
 
@@ -126,7 +126,7 @@ pub async fn run(args: CreateProjectArgs) -> Result<()> {
 
     // Find the best matching version
     let version_constraint = args.version.as_deref().unwrap_or("*");
-    info(&format!("Version constraint: {}", version_constraint));
+    info(&format!("Version constraint: {version_constraint}"));
 
     let constraint = libretto_core::VersionConstraint::new(version_constraint);
     let versions: Vec<_> = package_versions.into_iter().collect();
@@ -257,6 +257,9 @@ pub async fn run(args: CreateProjectArgs) -> Result<()> {
                 minimum_stability: Some(args.stability.clone()),
                 no_progress: false,
                 concurrency: 64,
+                audit: false,
+                fail_on_audit: false,
+                verify_checksums: false,
             };
 
             crate::commands::install::run(install_args).await?;
@@ -265,12 +268,49 @@ pub async fn run(args: CreateProjectArgs) -> Result<()> {
         }
     }
 
-    success(&format!("Project '{}' created successfully!", project_name));
+    // Run post-create-project scripts
+    // Note: We're already in the project directory after install, so use current_dir
+    let current_dir = std::env::current_dir()?;
+    let composer_json_path = current_dir.join("composer.json");
+    if composer_json_path.exists() {
+        let composer_content = std::fs::read_to_string(&composer_json_path)?;
+        let composer_json: sonic_rs::Value = sonic_rs::from_str(&composer_content)?;
+
+        let script_config = ScriptConfig {
+            working_dir: current_dir.clone(),
+            dev_mode: !args.no_dev,
+            ..Default::default()
+        };
+
+        // Run post-root-package-install scripts
+        if let Some(result) =
+            scripts::run_root_package_install_scripts(&composer_json, &script_config)?
+        {
+            if !result.success {
+                warning(&format!(
+                    "Post-root-package-install script warning: {}",
+                    result.error.unwrap_or_default()
+                ));
+            }
+        }
+
+        // Run post-create-project-cmd scripts
+        if let Some(result) = scripts::run_create_project_scripts(&composer_json, &script_config)? {
+            if !result.success {
+                warning(&format!(
+                    "Post-create-project script warning: {}",
+                    result.error.unwrap_or_default()
+                ));
+            }
+        }
+    }
+
+    success(&format!("Project '{project_name}' created successfully!"));
 
     // Print next steps
     println!();
     info("Next steps:");
-    println!("  cd {}", project_name);
+    println!("  cd {project_name}");
     if args.no_install {
         println!("  libretto install");
     }

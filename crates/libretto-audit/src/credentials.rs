@@ -1,9 +1,11 @@
-//! Secure credential management with keyring storage.
+//! Secure credential management with keyring storage and Git credential helper support.
 
 use dialoguer::{Input, Password};
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{BufRead, Write};
+use std::process::{Command, Stdio};
 use thiserror::Error;
 use url::Url;
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -298,10 +300,10 @@ impl CredentialManager {
     /// # Errors
     /// Returns error if credential cannot be obtained.
     pub fn get_for_url(&self, url: &Url) -> Result<Option<Credential>> {
-        if let Some(host) = url.host_str() {
-            if self.has_credential(host) {
-                return self.retrieve(host).map(Some);
-            }
+        if let Some(host) = url.host_str()
+            && self.has_credential(host)
+        {
+            return self.retrieve(host).map(Some);
         }
         Ok(None)
     }
@@ -309,6 +311,168 @@ impl CredentialManager {
     /// Clear all cached credentials (does not delete from keyring).
     pub fn clear_cache(&self) {
         self.cache.write().clear();
+    }
+
+    /// Get credential using Git credential helper.
+    ///
+    /// This integrates with Git's credential helper system, allowing Libretto
+    /// to use credentials stored by Git credential managers like:
+    /// - git-credential-manager
+    /// - git-credential-osxkeychain
+    /// - git-credential-gnome-keyring
+    /// - git-credential-store
+    ///
+    /// # Errors
+    /// Returns error if Git credential helper fails.
+    pub fn get_from_git_helper(&self, url: &Url) -> Result<Option<Credential>> {
+        let host = url.host_str().unwrap_or("");
+        let protocol = url.scheme();
+        let path = url.path();
+
+        // First check our cache
+        if let Some(cred) = self.cache.read().get(host) {
+            return Ok(Some(cred.clone()));
+        }
+
+        // Try git credential helper
+        let mut child = Command::new("git")
+            .args(["credential", "fill"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(CredentialError::Io)?;
+
+        // Write credential request
+        if let Some(ref mut stdin) = child.stdin {
+            writeln!(stdin, "protocol={protocol}").map_err(CredentialError::Io)?;
+            writeln!(stdin, "host={host}").map_err(CredentialError::Io)?;
+            if !path.is_empty() && path != "/" {
+                writeln!(stdin, "path={}", path.trim_start_matches('/'))
+                    .map_err(CredentialError::Io)?;
+            }
+            writeln!(stdin).map_err(CredentialError::Io)?;
+        }
+
+        let output = child.wait_with_output().map_err(CredentialError::Io)?;
+
+        if !output.status.success() {
+            return Ok(None);
+        }
+
+        // Parse response
+        let mut username = None;
+        let mut password = None;
+
+        for line in output.stdout.lines() {
+            let line = line.map_err(CredentialError::Io)?;
+            if let Some((key, value)) = line.split_once('=') {
+                match key {
+                    "username" => username = Some(value.to_string()),
+                    "password" => password = Some(value.to_string()),
+                    _ => {}
+                }
+            }
+        }
+
+        if let (Some(user), Some(pass)) = (username, password) {
+            let credential = Credential::basic(user, pass);
+            // Cache it
+            self.cache
+                .write()
+                .insert(host.to_string(), credential.clone());
+            return Ok(Some(credential));
+        }
+
+        Ok(None)
+    }
+
+    /// Store credential in Git credential helper.
+    ///
+    /// # Errors
+    /// Returns error if Git credential helper fails.
+    pub fn store_in_git_helper(&self, url: &Url, credential: &Credential) -> Result<()> {
+        let host = url.host_str().unwrap_or("");
+        let protocol = url.scheme();
+        let path = url.path();
+
+        let mut child = Command::new("git")
+            .args(["credential", "approve"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(CredentialError::Io)?;
+
+        if let Some(ref mut stdin) = child.stdin {
+            writeln!(stdin, "protocol={protocol}").map_err(CredentialError::Io)?;
+            writeln!(stdin, "host={host}").map_err(CredentialError::Io)?;
+            if !path.is_empty() && path != "/" {
+                writeln!(stdin, "path={}", path.trim_start_matches('/'))
+                    .map_err(CredentialError::Io)?;
+            }
+            if let Some(ref user) = credential.username {
+                writeln!(stdin, "username={user}").map_err(CredentialError::Io)?;
+            }
+            writeln!(stdin, "password={}", credential.secret).map_err(CredentialError::Io)?;
+            writeln!(stdin).map_err(CredentialError::Io)?;
+        }
+
+        let _ = child.wait();
+
+        // Also store in our cache
+        self.cache
+            .write()
+            .insert(host.to_string(), credential.clone());
+
+        Ok(())
+    }
+
+    /// Reject credential in Git credential helper (e.g., after auth failure).
+    ///
+    /// # Errors
+    /// Returns error if Git credential helper fails.
+    pub fn reject_in_git_helper(&self, url: &Url) -> Result<()> {
+        let host = url.host_str().unwrap_or("");
+        let protocol = url.scheme();
+
+        let mut child = Command::new("git")
+            .args(["credential", "reject"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(CredentialError::Io)?;
+
+        if let Some(ref mut stdin) = child.stdin {
+            writeln!(stdin, "protocol={protocol}").map_err(CredentialError::Io)?;
+            writeln!(stdin, "host={host}").map_err(CredentialError::Io)?;
+            writeln!(stdin).map_err(CredentialError::Io)?;
+        }
+
+        let _ = child.wait();
+
+        // Remove from cache
+        self.cache.write().remove(host);
+
+        Ok(())
+    }
+
+    /// Get credential for URL, trying multiple sources in order:
+    /// 1. In-memory cache
+    /// 2. Keyring
+    /// 3. Git credential helper
+    ///
+    /// # Errors
+    /// Returns error if credential cannot be obtained.
+    pub fn get_for_url_with_git(&self, url: &Url) -> Result<Option<Credential>> {
+        // First try our existing methods
+        if let Ok(Some(cred)) = self.get_for_url(url) {
+            return Ok(Some(cred));
+        }
+
+        // Fall back to git credential helper
+        self.get_from_git_helper(url)
     }
 }
 

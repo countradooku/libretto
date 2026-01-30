@@ -3,7 +3,6 @@
 use crate::error::{Result, VcsError};
 use crate::types::VcsCredentials;
 use dashmap::DashMap;
-use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,7 +12,8 @@ use std::sync::Arc;
 use tracing::{debug, trace, warn};
 
 /// Global credential cache shared across operations.
-static CREDENTIAL_CACHE: Lazy<DashMap<String, CachedCredential>> = Lazy::new(DashMap::new);
+static CREDENTIAL_CACHE: std::sync::LazyLock<DashMap<String, CachedCredential>> =
+    std::sync::LazyLock::new(DashMap::new);
 
 /// Cached credential with expiry.
 #[derive(Debug, Clone)]
@@ -253,13 +253,12 @@ impl CredentialManager {
 
         // Check for wildcard matches (e.g., *.github.com)
         for (pattern, entry) in entries.iter() {
-            if pattern.starts_with('*') {
-                let suffix = &pattern[1..];
-                if host.ends_with(suffix) {
-                    let creds = self.entry_to_credentials(entry);
-                    self.cache_credentials(host, creds.clone());
-                    return creds;
-                }
+            if let Some(suffix) = pattern.strip_prefix('*')
+                && host.ends_with(suffix)
+            {
+                let creds = self.entry_to_credentials(entry);
+                self.cache_credentials(host, creds.clone());
+                return creds;
             }
         }
 
@@ -497,12 +496,12 @@ impl CredentialManager {
     }
 
     /// Set to allow unknown hosts (less secure).
-    pub fn allow_unknown_hosts(&mut self, allow: bool) {
+    pub const fn allow_unknown_hosts(&mut self, allow: bool) {
         self.allow_unknown_hosts = allow;
     }
 
     /// Disable SSH agent usage.
-    pub fn disable_ssh_agent(&mut self) {
+    pub const fn disable_ssh_agent(&mut self) {
         self.use_ssh_agent = false;
     }
 
@@ -528,7 +527,7 @@ fn dirs_home() -> Option<PathBuf> {
 fn base64_encode(data: &[u8]) -> String {
     const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-    let mut result = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut result = String::with_capacity(data.len().div_ceil(3) * 4);
 
     for chunk in data.chunks(3) {
         let b0 = chunk[0] as usize;

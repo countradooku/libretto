@@ -11,8 +11,8 @@ use crate::cache::RepositoryCache;
 use crate::error::{RepositoryError, Result};
 use crate::packagist::{PackagistClient, PackagistConfig, SecurityAdvisory};
 use crate::providers::{
-    detect_provider, BitbucketClient, BitbucketConfig, GitHubClient, GitHubConfig, GitLabClient,
-    GitLabConfig, ProviderType, VcsProvider,
+    BitbucketClient, BitbucketConfig, GitHubClient, GitHubConfig, GitLabClient, GitLabConfig,
+    ProviderType, VcsProvider, detect_provider,
 };
 use crate::types::{
     PackageSearchResult, PrioritizedRepository, RepositoryConfig, RepositoryPriority,
@@ -22,8 +22,8 @@ use dashmap::DashMap;
 use libretto_cache::TieredCache;
 use libretto_core::{Package, PackageId, VersionConstraint};
 use parking_lot::RwLock;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use tracing::{debug, info, warn};
 use url::Url;
@@ -360,12 +360,12 @@ impl RepositoryManager {
                     }
                 }
                 RepositoryType::Vcs => {
-                    if let Some(ref url) = repo.config.url {
-                        if let Some(_provider) = self.get_vcs_provider(url) {
-                            // VCS repositories need special handling - we'd fetch composer.json
-                            // For now, skip VCS repos in basic package lookup
-                            debug!(package = %package_id, repo = %repo.name, "VCS lookup not implemented");
-                        }
+                    if let Some(ref url) = repo.config.url
+                        && let Some(_provider) = self.get_vcs_provider(url)
+                    {
+                        // VCS repositories need special handling - we'd fetch composer.json
+                        // For now, skip VCS repos in basic package lookup
+                        debug!(package = %package_id, repo = %repo.name, "VCS lookup not implemented");
                     }
                 }
                 RepositoryType::Path => {
@@ -374,11 +374,11 @@ impl RepositoryManager {
                 }
                 RepositoryType::Package => {
                     // Check inline package definition
-                    if let Some(ref inline) = repo.config.options.package {
-                        if inline.name == package_id.full_name() {
-                            debug!(package = %package_id, repo = %repo.name, "inline package found");
-                            // Would convert inline package to Package type
-                        }
+                    if let Some(ref inline) = repo.config.options.package
+                        && inline.name == package_id.full_name()
+                    {
+                        debug!(package = %package_id, repo = %repo.name, "inline package found");
+                        // Would convert inline package to Package type
                     }
                 }
                 RepositoryType::Artifact => {
@@ -505,10 +505,10 @@ impl RepositoryManager {
 
     /// Send download notification for a package.
     pub async fn notify_download(&self, package_name: &str, version: &str) {
-        if let Some(url) = self.default_packagist_url.read().clone() {
-            if let Ok(client) = self.get_packagist_client(&url) {
-                client.notify_download(package_name, version).await;
-            }
+        if let Some(url) = self.default_packagist_url.read().clone()
+            && let Ok(client) = self.get_packagist_client(&url)
+        {
+            client.notify_download(package_name, version).await;
         }
     }
 
@@ -527,7 +527,7 @@ impl RepositoryManager {
     /// Clear all caches.
     pub fn clear_cache(&self) {
         self.cache.clear();
-        for client in self.packagist_clients.iter() {
+        for client in &self.packagist_clients {
             client.clear_cache();
         }
     }
@@ -549,7 +549,7 @@ impl RepositoryManager {
     /// # Errors
     /// Returns error if initialization fails.
     pub async fn init_packagist(&self) -> Result<()> {
-        for client in self.packagist_clients.iter() {
+        for client in &self.packagist_clients {
             client.value().init().await?;
         }
         Ok(())

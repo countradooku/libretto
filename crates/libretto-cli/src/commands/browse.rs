@@ -44,13 +44,13 @@ pub async fn run(args: BrowseArgs) -> Result<()> {
             .context("No package name found in composer.json")?
     };
 
-    info(&format!("Looking up {}", package_name));
+    info(&format!("Looking up {package_name}"));
 
     // Fetch package info
     let repo = Repository::packagist()?;
     repo.init_packagist().await?;
     let package_id = libretto_core::PackageId::parse(&package_name)
-        .ok_or_else(|| anyhow::anyhow!("Invalid package name: {}", package_name))?;
+        .ok_or_else(|| anyhow::anyhow!("Invalid package name: {package_name}"))?;
     let package = repo.get_package(&package_id).await?;
 
     // Get the first version to extract URLs
@@ -87,7 +87,7 @@ pub async fn run(args: BrowseArgs) -> Result<()> {
     if args.show {
         println!("{url}");
     } else {
-        success(&format!("Opening: {}", url));
+        success(&format!("Opening: {url}"));
         open_url(&url)?;
     }
 

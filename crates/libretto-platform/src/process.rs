@@ -2,7 +2,7 @@
 //!
 //! Provides unified interface for:
 //! - Unix: fork/exec, process groups, signals
-//! - Windows: CreateProcess, job objects
+//! - Windows: `CreateProcess`, job objects
 
 #![allow(unsafe_code)]
 
@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Output, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 /// Process builder with cross-platform support.
@@ -134,7 +134,7 @@ impl ProcessBuilder {
 
     /// Clear all environment variables (start fresh).
     #[must_use]
-    pub fn env_clear(mut self) -> Self {
+    pub const fn env_clear(mut self) -> Self {
         self.clear_env = true;
         self
     }
@@ -241,10 +241,9 @@ impl ProcessBuilder {
     pub fn spawn(self) -> Result<ProcessHandle> {
         let mut cmd = self.build_command();
         let timeout = self.timeout;
-        let program = self.program.clone();
 
         let child = cmd.spawn().map_err(|e| {
-            PlatformError::spawn_failed(program.display().to_string(), e.to_string())
+            PlatformError::spawn_failed(self.program.display().to_string(), e.to_string())
         })?;
 
         Ok(ProcessHandle {
@@ -386,8 +385,7 @@ impl ProcessHandle {
                         // Timeout - kill the process
                         self.kill()?;
                         return Err(PlatformError::Process(format!(
-                            "Process timed out after {:?}",
-                            timeout
+                            "Process timed out after {timeout:?}"
                         )));
                     }
                     std::thread::sleep(poll_interval);
@@ -413,8 +411,9 @@ impl ProcessHandle {
     /// # Errors
     /// Returns error if termination fails.
     #[cfg(unix)]
+    #[allow(clippy::cast_possible_wrap)] // PID conversion is valid - PIDs fit in i32
     pub fn terminate(&mut self) -> Result<()> {
-        use nix::sys::signal::{kill, Signal};
+        use nix::sys::signal::{Signal, kill};
         use nix::unistd::Pid;
 
         kill(Pid::from_raw(self.child.id() as i32), Signal::SIGTERM)
@@ -428,19 +427,19 @@ impl ProcessHandle {
 
     /// Take ownership of stdin.
     #[must_use]
-    pub fn stdin(&mut self) -> Option<std::process::ChildStdin> {
+    pub const fn stdin(&mut self) -> Option<std::process::ChildStdin> {
         self.child.stdin.take()
     }
 
     /// Take ownership of stdout.
     #[must_use]
-    pub fn stdout(&mut self) -> Option<std::process::ChildStdout> {
+    pub const fn stdout(&mut self) -> Option<std::process::ChildStdout> {
         self.child.stdout.take()
     }
 
     /// Take ownership of stderr.
     #[must_use]
-    pub fn stderr(&mut self) -> Option<std::process::ChildStderr> {
+    pub const fn stderr(&mut self) -> Option<std::process::ChildStderr> {
         self.child.stderr.take()
     }
 
@@ -631,11 +630,11 @@ pub fn run_silent(program: &str, args: &[&str]) -> Result<()> {
 /// Platform-specific process operations.
 #[cfg(unix)]
 pub mod unix {
-    use super::*;
+    use super::{PlatformError, Result};
 
     /// Get the process group ID of a process.
     pub fn getpgid(pid: u32) -> Result<u32> {
-        use nix::unistd::{getpgid, Pid};
+        use nix::unistd::{Pid, getpgid};
 
         getpgid(Some(Pid::from_raw(pid as i32)))
             .map(|pgid| pgid.as_raw() as u32)
@@ -644,7 +643,7 @@ pub mod unix {
 
     /// Get the session ID of a process.
     pub fn getsid(pid: u32) -> Result<u32> {
-        use nix::unistd::{getsid, Pid};
+        use nix::unistd::{Pid, getsid};
 
         getsid(Some(Pid::from_raw(pid as i32)))
             .map(|sid| sid.as_raw() as u32)
@@ -653,7 +652,7 @@ pub mod unix {
 
     /// Kill all processes in a process group.
     pub fn kill_process_group(pgid: u32, signal: i32) -> Result<()> {
-        use nix::sys::signal::{killpg, Signal};
+        use nix::sys::signal::{Signal, killpg};
         use nix::unistd::Pid;
 
         let sig = Signal::try_from(signal)
@@ -667,7 +666,7 @@ pub mod unix {
     /// # Errors
     /// Returns error if daemonization fails.
     pub fn daemonize() -> Result<()> {
-        use nix::unistd::{fork, setsid, ForkResult};
+        use nix::unistd::{ForkResult, fork, setsid};
 
         // First fork
         match unsafe { fork() } {

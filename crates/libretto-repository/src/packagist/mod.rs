@@ -5,7 +5,7 @@
 //!
 //! - Lazy package metadata loading via metadata-url pattern
 //! - Provider-includes for incremental metadata updates
-//! - ETags and If-Modified-Since for efficient caching
+//! - `ETags` and If-Modified-Since for efficient caching
 //! - Private Packagist instances
 //! - Parallel package metadata fetching
 //! - Security advisories checking
@@ -68,12 +68,13 @@ mod client;
 mod types;
 
 pub use client::{
-    PackagistClient, PackagistConfig, PackagistStats, PACKAGIST_API_URL, PACKAGIST_URL,
+    PACKAGIST_API_URL, PACKAGIST_URL, PackagistClient, PackagistConfig, PackagistStats,
 };
 pub use types::{
-    expand_minified_versions, AbandonedValue, AdvisorySource, AuthorJson, AutoloadJson,
-    ChangeAction, ChangesResponse, DistJson, FundingJson, LicenseValue, PackageListEntry,
-    PackageListResponse, PackageMetadataResponse, PackageVersionJson, PackagesJson, PopularPackage,
+    AbandonedValue, AdvisorySource, AuthorJson, AutoloadJson, ChangeAction, ChangesResponse,
+    DistJson, FundingJson, LicenseValue, PackageListEntry, PackageListResponse,
+    PackageMetadataResponse, PackageVersionJson, PackagesJson, PopularPackage,
     PopularPackagesResponse, ProviderInclude, PsrValue, SearchResponse, SearchResult,
     SecurityAdvisoriesResponse, SecurityAdvisory, SourceJson, StatisticsResponse, TotalStats,
+    expand_minified_versions,
 };

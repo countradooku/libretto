@@ -1,5 +1,6 @@
 //! Remove command implementation.
 
+use crate::scripts::{ScriptConfig, ScriptEvent, run_package_scripts};
 use anyhow::Result;
 use clap::Args;
 use sonic_rs::{JsonValueMutTrait, JsonValueTrait};
@@ -43,49 +44,68 @@ pub async fn run(args: RemoveArgs) -> Result<()> {
     let composer_content = std::fs::read_to_string(&composer_path)?;
     let mut composer: sonic_rs::Value = sonic_rs::from_str(&composer_content)?;
 
+    // Set up script configuration
+    let script_config = ScriptConfig {
+        working_dir: cwd.clone(),
+        dev_mode: !args.dev,
+        ..Default::default()
+    };
+
     let colors = crate::output::colors_enabled();
     let mut removed: Vec<String> = Vec::new();
     let mut not_found: Vec<String> = Vec::new();
 
     for package in &args.packages {
+        // Run pre-package-uninstall scripts
+        let _ = run_package_scripts(
+            &composer,
+            &script_config,
+            ScriptEvent::PrePackageUninstall,
+            package,
+        );
         let mut found = false;
 
         // Try to remove from require
-        if !args.dev {
-            if let Some(require) = composer.get_mut("require").and_then(|v| v.as_object_mut()) {
-                if require.remove(package).is_some() {
-                    found = true;
-                }
-            }
+        if !args.dev
+            && let Some(require) = composer.get_mut("require").and_then(|v| v.as_object_mut())
+            && require.remove(package).is_some()
+        {
+            found = true;
         }
 
         // Try to remove from require-dev
-        if args.dev || !found {
-            if let Some(require_dev) = composer
+        if (args.dev || !found)
+            && let Some(require_dev) = composer
                 .get_mut("require-dev")
                 .and_then(|v| v.as_object_mut())
-            {
-                if require_dev.remove(package).is_some() {
-                    found = true;
-                }
-            }
+            && require_dev.remove(package).is_some()
+        {
+            found = true;
         }
 
         if found {
             if colors {
                 println!("  {} {}", "-".red(), package.red());
             } else {
-                println!("  - {}", package);
+                println!("  - {package}");
             }
             removed.push(package.clone());
 
             // Remove from vendor directory
             let pkg_dir = vendor_dir.join(package.replace('/', std::path::MAIN_SEPARATOR_STR));
-            if pkg_dir.exists() {
-                if let Err(e) = std::fs::remove_dir_all(&pkg_dir) {
-                    warning(&format!("Could not remove vendor/{}: {}", package, e));
-                }
+            if pkg_dir.exists()
+                && let Err(e) = std::fs::remove_dir_all(&pkg_dir)
+            {
+                warning(&format!("Could not remove vendor/{package}: {e}"));
             }
+
+            // Run post-package-uninstall scripts
+            let _ = run_package_scripts(
+                &composer,
+                &script_config,
+                ScriptEvent::PostPackageUninstall,
+                package,
+            );
         } else {
             not_found.push(package.clone());
         }
@@ -94,7 +114,7 @@ pub async fn run(args: RemoveArgs) -> Result<()> {
     if !not_found.is_empty() {
         println!();
         for package in &not_found {
-            warning(&format!("Package '{}' not found in dependencies", package));
+            warning(&format!("Package '{package}' not found in dependencies"));
         }
     }
 

@@ -108,7 +108,7 @@ impl AuditEntry {
 
     /// Set success status.
     #[must_use]
-    pub fn with_success(mut self, success: bool) -> Self {
+    pub const fn with_success(mut self, success: bool) -> Self {
         self.success = success;
         self
     }
@@ -132,7 +132,7 @@ pub struct AuditLogger {
 impl AuditLogger {
     /// Create new audit logger (disabled).
     #[must_use]
-    pub fn disabled() -> Self {
+    pub const fn disabled() -> Self {
         Self {
             log_path: None,
             buffer: Mutex::new(Vec::new()),
@@ -152,14 +152,14 @@ impl AuditLogger {
 
     /// Set max buffer size before flush.
     #[must_use]
-    pub fn with_buffer_size(mut self, size: usize) -> Self {
+    pub const fn with_buffer_size(mut self, size: usize) -> Self {
         self.max_buffer_size = size;
         self
     }
 
     /// Check if logging is enabled.
     #[must_use]
-    pub fn is_enabled(&self) -> bool {
+    pub const fn is_enabled(&self) -> bool {
         self.log_path.is_some()
     }
 
@@ -351,23 +351,23 @@ impl AuditLogger {
 impl Drop for AuditLogger {
     fn drop(&mut self) {
         // Best effort flush on drop (blocking)
-        if !self.buffer.lock().is_empty() {
-            if let Some(ref path) = self.log_path {
-                let _ = std::fs::OpenOptions::new()
-                    .create(true)
-                    .append(true)
-                    .open(path)
-                    .and_then(|mut file| {
-                        use std::io::Write;
-                        let buffer = self.buffer.lock();
-                        for entry in buffer.iter() {
-                            if let Ok(line) = entry.to_json_line() {
-                                let _ = file.write_all(line.as_bytes());
-                            }
+        if !self.buffer.lock().is_empty()
+            && let Some(ref path) = self.log_path
+        {
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .and_then(|mut file| {
+                    use std::io::Write;
+                    let buffer = self.buffer.lock();
+                    for entry in buffer.iter() {
+                        if let Ok(line) = entry.to_json_line() {
+                            let _ = file.write_all(line.as_bytes());
                         }
-                        file.flush()
-                    });
-            }
+                    }
+                    file.flush()
+                });
         }
     }
 }

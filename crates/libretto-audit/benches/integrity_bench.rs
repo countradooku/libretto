@@ -1,7 +1,7 @@
 //! Benchmarks for integrity verification.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use libretto_audit::{hash_file, HashAlgorithm};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use libretto_audit::{HashAlgorithm, hash_file};
 use std::io::Write;
 use tempfile::NamedTempFile;
 

@@ -20,7 +20,7 @@ pub struct DumpAutoloadArgs {
     #[arg(short, long)]
     pub classmap_authoritative: bool,
 
-    /// APCu caching
+    /// `APCu` caching
     #[arg(long)]
     pub apcu: bool,
 
@@ -63,8 +63,8 @@ enum Psr4Value {
 impl Psr4Value {
     fn to_vec(&self) -> Vec<String> {
         match self {
-            Psr4Value::Single(s) => vec![s.clone()],
-            Psr4Value::Multiple(v) => v.clone(),
+            Self::Single(s) => vec![s.clone()],
+            Self::Multiple(v) => v.clone(),
         }
     }
 }
@@ -107,11 +107,7 @@ pub async fn run(args: DumpAutoloadArgs) -> Result<()> {
             let vendor_path = entry.path();
             if vendor_path.is_dir() {
                 // Skip composer directory
-                if vendor_path
-                    .file_name()
-                    .map(|n| n == "composer")
-                    .unwrap_or(false)
-                {
+                if vendor_path.file_name().is_some_and(|n| n == "composer") {
                     continue;
                 }
 
@@ -121,17 +117,17 @@ pub async fn run(args: DumpAutoloadArgs) -> Result<()> {
                         let package_path = package_entry.path();
                         if package_path.is_dir() {
                             let composer_json_path = package_path.join("composer.json");
-                            if composer_json_path.exists() {
-                                if let Some(config) = load_autoload_config(&composer_json_path) {
-                                    debug!(
-                                        "Loaded autoload config from {:?}: psr4={}, files={}",
-                                        composer_json_path,
-                                        config.psr4.mappings.len(),
-                                        config.files.files.len()
-                                    );
-                                    generator.add_package(&package_path, &config);
-                                    package_count += 1;
-                                }
+                            if composer_json_path.exists()
+                                && let Some(config) = load_autoload_config(&composer_json_path)
+                            {
+                                debug!(
+                                    "Loaded autoload config from {:?}: psr4={}, files={}",
+                                    composer_json_path,
+                                    config.psr4.mappings.len(),
+                                    config.files.files.len()
+                                );
+                                generator.add_package(&package_path, &config);
+                                package_count += 1;
                             }
                         }
                     }
@@ -142,12 +138,12 @@ pub async fn run(args: DumpAutoloadArgs) -> Result<()> {
 
     // Also load root project's autoload config if exists (including autoload-dev)
     let root_composer_json = PathBuf::from("composer.json");
-    if root_composer_json.exists() {
-        if let Some(config) = load_autoload_config_with_dev(&root_composer_json) {
-            let project_root = PathBuf::from(".");
-            generator.add_package(&project_root, &config);
-            debug!("Loaded root project autoload config (with dev)");
-        }
+    if root_composer_json.exists()
+        && let Some(config) = load_autoload_config_with_dev(&root_composer_json)
+    {
+        let project_root = PathBuf::from(".");
+        generator.add_package(&project_root, &config);
+        debug!("Loaded root project autoload config (with dev)");
     }
 
     info!("Loaded autoload configs from {} packages", package_count);

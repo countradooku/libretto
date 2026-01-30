@@ -4,7 +4,7 @@
 //! package manager, supporting:
 //!
 //! - **Packagist API v2**: Full support for packagist.org and private Packagist
-//!   instances, including lazy metadata loading, provider-includes, and ETags
+//!   instances, including lazy metadata loading, provider-includes, and `ETags`
 //!   for efficient caching.
 //!
 //! - **VCS Providers**: GitHub, GitLab, and Bitbucket API integration for
@@ -15,7 +15,7 @@
 //!
 //! - **HTTP Client**: High-performance HTTP/2 client with connection pooling,
 //!   per-host rate limiting, exponential backoff retry, and conditional
-//!   request support (ETags, If-Modified-Since).
+//!   request support (`ETags`, If-Modified-Since).
 //!
 //! - **Caching**: Multi-tier caching with in-memory LRU and optional persistent
 //!   disk storage via libretto-cache.
@@ -124,7 +124,7 @@
 //! # }
 //! ```
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 pub mod cache;

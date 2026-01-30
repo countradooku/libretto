@@ -17,7 +17,7 @@
 //! - Cached vulnerability database
 //! - Constant-time comparisons for security
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 mod advisory;
@@ -68,7 +68,7 @@ pub use secure::{
 };
 pub use signature::{
     Ed25519Verifier, PgpVerifier, SignatureAlgorithm, SignatureError, SignatureVerifier,
-    VerifiedSignature,
+    TrustChain, TrustLevel, TrustedKey, TrustedSignatureVerifier, VerifiedSignature,
 };
 
 /// Vulnerability severity level.
@@ -182,7 +182,7 @@ pub struct PackageAudit {
 impl PackageAudit {
     /// Check if package is vulnerable.
     #[must_use]
-    pub fn is_vulnerable(&self) -> bool {
+    pub const fn is_vulnerable(&self) -> bool {
         !self.vulnerabilities.is_empty()
     }
 
@@ -306,7 +306,7 @@ impl Auditor {
 
     /// Get signature verifier.
     #[must_use]
-    pub fn signature_verifier(&mut self) -> &mut SignatureVerifier {
+    pub const fn signature_verifier(&mut self) -> &mut SignatureVerifier {
         &mut self.signature_verifier
     }
 

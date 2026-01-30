@@ -185,7 +185,7 @@ pub struct Dependency {
 impl Dependency {
     /// Create a new dependency.
     #[must_use]
-    pub fn new(name: PackageName, constraint: ComposerConstraint) -> Self {
+    pub const fn new(name: PackageName, constraint: ComposerConstraint) -> Self {
         Self { name, constraint }
     }
 }
@@ -213,6 +213,8 @@ pub struct PackageVersion {
     pub provides: SmallVec<[Dependency; 2]>,
     /// Packages this conflicts with.
     pub conflicts: SmallVec<[Dependency; 2]>,
+    /// Suggested packages.
+    pub suggests: SmallVec<[Dependency; 2]>,
     /// Stability of this version.
     pub stability: Stability,
     /// Distribution URL.
@@ -227,6 +229,35 @@ pub struct PackageVersion {
     pub source_type: Option<Arc<str>>,
     /// Source reference (commit, tag).
     pub source_reference: Option<Arc<str>>,
+    // Full metadata for lock file
+    /// Package type (library, project, etc.).
+    pub package_type: Option<Arc<str>>,
+    /// Description.
+    pub description: Option<Arc<str>>,
+    /// Homepage URL.
+    pub homepage: Option<Arc<str>>,
+    /// Licenses.
+    pub license: Option<Vec<String>>,
+    /// Authors (JSON value).
+    pub authors: Option<sonic_rs::Value>,
+    /// Keywords.
+    pub keywords: Option<Vec<String>>,
+    /// Release time.
+    pub time: Option<Arc<str>>,
+    /// Autoload configuration (JSON value).
+    pub autoload: Option<sonic_rs::Value>,
+    /// Autoload-dev configuration (JSON value).
+    pub autoload_dev: Option<sonic_rs::Value>,
+    /// Extra metadata (JSON value).
+    pub extra: Option<sonic_rs::Value>,
+    /// Support links (JSON value).
+    pub support: Option<sonic_rs::Value>,
+    /// Funding links (JSON value).
+    pub funding: Option<sonic_rs::Value>,
+    /// Notification URL.
+    pub notification_url: Option<Arc<str>>,
+    /// Binary files.
+    pub bin: Option<Vec<String>>,
 }
 
 impl PackageVersion {
@@ -242,6 +273,7 @@ impl PackageVersion {
             replaces: SmallVec::new(),
             provides: SmallVec::new(),
             conflicts: SmallVec::new(),
+            suggests: SmallVec::new(),
             stability,
             dist_url: None,
             dist_type: None,
@@ -249,6 +281,20 @@ impl PackageVersion {
             source_url: None,
             source_type: None,
             source_reference: None,
+            package_type: None,
+            description: None,
+            homepage: None,
+            license: None,
+            authors: None,
+            keywords: None,
+            time: None,
+            autoload: None,
+            autoload_dev: None,
+            extra: None,
+            support: None,
+            funding: None,
+            notification_url: None,
+            bin: None,
         }
     }
 
@@ -290,7 +336,7 @@ pub struct PackageEntry {
 impl PackageEntry {
     /// Create a new package entry.
     #[must_use]
-    pub fn new(name: PackageName) -> Self {
+    pub const fn new(name: PackageName) -> Self {
         Self {
             name,
             versions: Vec::new(),
@@ -370,7 +416,7 @@ mod tests {
         }
 
         #[test]
-        #[should_panic]
+        #[should_panic(expected = "vendor cannot be empty")]
         fn new_panics_empty_vendor() {
             let _ = PackageName::new("", "name");
         }

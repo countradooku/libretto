@@ -1,7 +1,7 @@
 //! Benchmarks for the cache system.
 
 use bytes::Bytes;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use libretto_cache::{BloomFilter, CacheConfig, CacheEntryType, L1Cache, L1Entry, TieredCache};
 use libretto_core::ContentHash;
 

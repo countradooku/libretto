@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
 
 [[bin]]
 name = "libretto"
@@ -82,3 +85,7 @@ rayon = { workspace = true }
 futures = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
+
+# Hashing
+sha1 = { workspace = true }
+hex = { workspace = true }

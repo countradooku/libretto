@@ -78,41 +78,38 @@ pub async fn run(args: BumpArgs) -> Result<()> {
     let mut changes: Vec<(String, String, String)> = Vec::new();
 
     // Process require section
-    if !args.dev_only {
-        if let Some(require) = composer.get_mut("require").and_then(|v| v.as_object_mut()) {
-            for (name, constraint) in require.iter_mut() {
-                if should_process(name, &args.packages) {
-                    if let Some(version) = installed.get(name) {
-                        let new_constraint =
-                            bump_constraint(constraint.as_str().unwrap_or("*"), version);
-                        let old = constraint.as_str().unwrap_or("*").to_string();
-                        if old != new_constraint {
-                            changes.push((name.to_string(), old, new_constraint.clone()));
-                            *constraint = sonic_rs::json!(new_constraint);
-                        }
-                    }
+    if !args.dev_only
+        && let Some(require) = composer.get_mut("require").and_then(|v| v.as_object_mut())
+    {
+        for (name, constraint) in require.iter_mut() {
+            if should_process(name, &args.packages)
+                && let Some(version) = installed.get(name)
+            {
+                let new_constraint = bump_constraint(constraint.as_str().unwrap_or("*"), version);
+                let old = constraint.as_str().unwrap_or("*").to_string();
+                if old != new_constraint {
+                    changes.push((name.to_string(), old, new_constraint.clone()));
+                    *constraint = sonic_rs::json!(new_constraint);
                 }
             }
         }
     }
 
     // Process require-dev section
-    if !args.no_dev_only {
-        if let Some(require_dev) = composer
+    if !args.no_dev_only
+        && let Some(require_dev) = composer
             .get_mut("require-dev")
             .and_then(|v| v.as_object_mut())
-        {
-            for (name, constraint) in require_dev.iter_mut() {
-                if should_process(name, &args.packages) {
-                    if let Some(version) = installed.get(name) {
-                        let new_constraint =
-                            bump_constraint(constraint.as_str().unwrap_or("*"), version);
-                        let old = constraint.as_str().unwrap_or("*").to_string();
-                        if old != new_constraint {
-                            changes.push((name.to_string(), old, new_constraint.clone()));
-                            *constraint = sonic_rs::json!(new_constraint);
-                        }
-                    }
+    {
+        for (name, constraint) in require_dev.iter_mut() {
+            if should_process(name, &args.packages)
+                && let Some(version) = installed.get(name)
+            {
+                let new_constraint = bump_constraint(constraint.as_str().unwrap_or("*"), version);
+                let old = constraint.as_str().unwrap_or("*").to_string();
+                if old != new_constraint {
+                    changes.push((name.to_string(), old, new_constraint.clone()));
+                    *constraint = sonic_rs::json!(new_constraint);
                 }
             }
         }

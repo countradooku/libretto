@@ -1,7 +1,7 @@
 //! Table formatting utilities.
 
 use comfy_table::{
-    presets, Attribute, Cell, CellAlignment, Color, ContentArrangement, Table as ComfyTable,
+    Attribute, Cell, CellAlignment, Color, ContentArrangement, Table as ComfyTable, presets,
 };
 
 /// Table style presets

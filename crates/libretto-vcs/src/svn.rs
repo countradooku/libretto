@@ -15,6 +15,7 @@ pub struct SvnRepository {
 
 impl SvnRepository {
     /// Check if SVN is available.
+    #[must_use]
     pub fn is_available() -> bool {
         Command::new("svn")
             .arg("--version")

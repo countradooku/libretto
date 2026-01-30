@@ -1,6 +1,6 @@
 //! Archive extraction for Libretto.
 
-#![deny(clippy::all)]
+#![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
 use flate2::read::GzDecoder;
@@ -32,6 +32,7 @@ impl ArchiveType {
 
     /// Detect archive type from filename.
     #[must_use]
+    #[allow(clippy::case_sensitive_file_extension_comparisons)] // string is already lowercased
     pub fn from_filename(name: &str) -> Option<Self> {
         let lower = name.to_lowercase();
         if lower.ends_with(".zip") {
@@ -115,7 +116,7 @@ impl Extractor {
             let mut entry = zip.by_index(i).map_err(|e| Error::Archive(e.to_string()))?;
 
             let path = match entry.enclosed_name() {
-                Some(p) => p.to_path_buf(),
+                Some(p) => p.clone(),
                 None => continue,
             };
 

@@ -1,7 +1,7 @@
 //! Terminal output utilities for beautiful CLI output.
 //!
 //! Provides unified styling, progress bars, tables, and interactive prompts
-//! with support for TTY detection, NO_COLOR environment variable, and
+//! with support for TTY detection, `NO_COLOR` environment variable, and
 //! graceful degradation to ASCII when Unicode is not supported.
 //!
 //! These utilities provide a complete UI toolkit for CLI commands.
@@ -17,7 +17,6 @@ pub mod table;
 
 pub use style::{Icon, OutputMode, Theme};
 
-use once_cell::sync::Lazy;
 use std::io::{IsTerminal, stderr, stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -26,10 +25,12 @@ static COLOR_ENABLED: AtomicBool = AtomicBool::new(true);
 static UNICODE_ENABLED: AtomicBool = AtomicBool::new(true);
 
 /// Detect if we're running in a terminal
-static IS_TTY: Lazy<bool> = Lazy::new(|| stdout().is_terminal() && stderr().is_terminal());
+static IS_TTY: std::sync::LazyLock<bool> =
+    std::sync::LazyLock::new(|| stdout().is_terminal() && stderr().is_terminal());
 
-/// Check if NO_COLOR environment variable is set
-static NO_COLOR: Lazy<bool> = Lazy::new(|| std::env::var("NO_COLOR").is_ok());
+/// Check if `NO_COLOR` environment variable is set
+static NO_COLOR: std::sync::LazyLock<bool> =
+    std::sync::LazyLock::new(|| std::env::var("NO_COLOR").is_ok());
 
 /// Initialize output settings based on environment and flags
 pub fn init(force_ansi: Option<bool>, quiet: bool) {

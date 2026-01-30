@@ -1,7 +1,7 @@
 //! Package index with concurrent caching.
 //!
 //! The package index provides fast, thread-safe access to package metadata.
-//! It uses DashMap for lock-free concurrent reads and writes, with aggressive
+//! It uses `DashMap` for lock-free concurrent reads and writes, with aggressive
 //! caching of both package data and constraint evaluations.
 
 use crate::package::{Dependency, PackageEntry, PackageName, PackageVersion};
@@ -246,14 +246,14 @@ impl<S: PackageSource> PackageIndex<S> {
         let key: Arc<str> = Arc::from(name.as_str());
 
         // Check cache first
-        if let Some(cached) = self.packages.get(&key) {
-            if !cached.is_expired() {
-                self.stats.record_hit();
-                trace!(package = %name, "cache hit");
-                return Some(Arc::clone(&cached.entry));
-            }
-            // Expired, will refetch
+        if let Some(cached) = self.packages.get(&key)
+            && !cached.is_expired()
+        {
+            self.stats.record_hit();
+            trace!(package = %name, "cache hit");
+            return Some(Arc::clone(&cached.entry));
         }
+        // Expired, will refetch
 
         self.stats.record_miss();
         trace!(package = %name, "cache miss");
@@ -280,10 +280,10 @@ impl<S: PackageSource> PackageIndex<S> {
         let key: Arc<str> = Arc::from(name.as_str());
 
         // Check cache first
-        if let Some(cached) = self.packages.get(&key) {
-            if !cached.is_expired() {
-                return true;
-            }
+        if let Some(cached) = self.packages.get(&key)
+            && !cached.is_expired()
+        {
+            return true;
         }
 
         // Check source
@@ -302,19 +302,19 @@ impl<S: PackageSource> PackageIndex<S> {
         };
 
         // Check constraint cache
-        if let Some(cached) = self.constraint_cache.get(&cache_key) {
-            if cached.cached_at.elapsed() < self.config.constraint_cache_ttl {
-                self.stats.record_constraint_hit();
+        if let Some(cached) = self.constraint_cache.get(&cache_key)
+            && cached.cached_at.elapsed() < self.config.constraint_cache_ttl
+        {
+            self.stats.record_constraint_hit();
 
-                // Get the package and extract versions by index
-                if let Some(entry) = self.get(name) {
-                    return cached
-                        .matching_indices
-                        .iter()
-                        .filter_map(|&i| entry.versions.get(i))
-                        .map(|v| v.version.clone())
-                        .collect();
-                }
+            // Get the package and extract versions by index
+            if let Some(entry) = self.get(name) {
+                return cached
+                    .matching_indices
+                    .iter()
+                    .filter_map(|&i| entry.versions.get(i))
+                    .map(|v| v.version.clone())
+                    .collect();
             }
         }
 
@@ -439,7 +439,7 @@ impl<S: PackageSource> PackageIndex<S> {
             .iter()
             .filter(|name| {
                 let key: Arc<str> = Arc::from(name.as_str());
-                !self.packages.get(&key).map_or(false, |c| !c.is_expired())
+                self.packages.get(&key).is_none_or(|c| c.is_expired())
             })
             .cloned()
             .collect();

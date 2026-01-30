@@ -7,13 +7,15 @@
 #![allow(unsafe_code)]
 
 use crate::{PlatformError, Result};
-use once_cell::sync::Lazy;
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Type alias for signal handler callback function.
+type SignalCallback = Box<dyn Fn(SignalKind) + Send + Sync>;
 
 /// Global signal state.
-static SIGNAL_STATE: Lazy<SignalState> = Lazy::new(SignalState::new);
+static SIGNAL_STATE: std::sync::LazyLock<SignalState> = std::sync::LazyLock::new(SignalState::new);
 
 /// Signal state container.
 struct SignalState {
@@ -22,7 +24,7 @@ struct SignalState {
     /// Whether an interrupt signal was received.
     interrupted: AtomicBool,
     /// Custom handlers.
-    handlers: Mutex<Vec<Box<dyn Fn(SignalKind) + Send + Sync>>>,
+    handlers: Mutex<Vec<SignalCallback>>,
 }
 
 impl SignalState {
@@ -126,7 +128,7 @@ pub struct SignalHandler {
 impl SignalHandler {
     /// Initialize signal handling for the application.
     ///
-    /// This should be called early in main() to set up signal handlers.
+    /// This should be called early in `main()` to set up signal handlers.
     ///
     /// # Errors
     /// Returns error if signal handlers cannot be registered.
@@ -174,7 +176,7 @@ impl SignalHandler {
     #[cfg(windows)]
     fn init_windows() -> Result<()> {
         use windows_sys::Win32::System::Console::{
-            SetConsoleCtrlHandler, CTRL_BREAK_EVENT, CTRL_C_EVENT,
+            CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler,
         };
 
         unsafe extern "system" fn handler(ctrl_type: u32) -> i32 {
@@ -258,6 +260,7 @@ impl SignalHandler {
     ///
     /// Returns the signal that was received.
     #[cfg(unix)]
+    #[must_use]
     pub fn wait_for_signal() -> SignalKind {
         use std::time::Duration;
 
@@ -279,7 +282,7 @@ impl SignalHandler {
     /// Returns error if signal cannot be sent.
     #[cfg(unix)]
     pub fn send_signal(pid: u32, signal: SignalKind) -> Result<()> {
-        use nix::sys::signal::{kill, Signal};
+        use nix::sys::signal::{Signal, kill};
         use nix::unistd::Pid;
 
         let sig = match signal {
@@ -293,7 +296,7 @@ impl SignalHandler {
             _ => {
                 return Err(PlatformError::Signal(format!(
                     "Unsupported signal: {signal}"
-                )))
+                )));
             }
         };
 

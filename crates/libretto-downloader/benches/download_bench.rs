@@ -1,8 +1,8 @@
 //! Benchmarks for the downloader crate.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use libretto_downloader::{
-    checksum::{bytes_to_hex, MultiHasher},
+    checksum::{MultiHasher, bytes_to_hex},
     config::DownloadConfig,
     throttle::BandwidthThrottler,
 };

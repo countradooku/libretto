@@ -9,6 +9,7 @@ authors.workspace = true
 keywords.workspace = true
 categories.workspace = true
 description = "Hierarchical configuration management for Libretto package manager"
+readme = "README.md"
 
 [lints]
 workspace = true

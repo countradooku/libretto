@@ -16,8 +16,8 @@ use dashmap::DashMap;
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tracing::{debug, error, info, warn};
 
 /// Request for a parallel clone operation.
@@ -74,7 +74,7 @@ pub struct ParallelCloneResult {
 impl ParallelCloneResult {
     /// Check if all clones succeeded.
     #[must_use]
-    pub fn all_succeeded(&self) -> bool {
+    pub const fn all_succeeded(&self) -> bool {
         self.failed.is_empty()
     }
 
@@ -146,21 +146,21 @@ impl ParallelCloner {
 
     /// Set maximum parallel operations.
     #[must_use]
-    pub fn with_max_parallel(mut self, max: usize) -> Self {
+    pub const fn with_max_parallel(mut self, max: usize) -> Self {
         self.max_parallel = max;
         self
     }
 
     /// Set retry count.
     #[must_use]
-    pub fn with_retry_count(mut self, count: usize) -> Self {
+    pub const fn with_retry_count(mut self, count: usize) -> Self {
         self.retry_count = count;
         self
     }
 
     /// Set max connections per host.
     #[must_use]
-    pub fn with_max_per_host(mut self, max: usize) -> Self {
+    pub const fn with_max_per_host(mut self, max: usize) -> Self {
         self.max_per_host = max;
         self
     }
@@ -169,6 +169,7 @@ impl ParallelCloner {
     ///
     /// # Errors
     /// Returns individual errors in the result for failed clones.
+    #[must_use]
     pub fn clone_all(&self, requests: Vec<CloneRequest>) -> ParallelCloneResult {
         self.clone_all_with_progress(requests, None)
     }
@@ -280,11 +281,11 @@ impl ParallelCloner {
 
             // Apply reference cache if available
             let mut options = request.options.clone();
-            if let Some(ref cache) = self.reference_cache {
-                if let Some(ref_path) = cache.get_reference(&request.url) {
-                    options.reference = Some(ref_path);
-                    debug!(url = %request.url, "using reference repository");
-                }
+            if let Some(ref cache) = self.reference_cache
+                && let Some(ref_path) = cache.get_reference(&request.url)
+            {
+                options.reference = Some(ref_path);
+                debug!(url = %request.url, "using reference repository");
             }
 
             match GitRepository::clone_with_credentials(
@@ -418,6 +419,7 @@ impl BatchCloneBuilder {
     }
 
     /// Execute all clones.
+    #[must_use]
     pub fn execute(self) -> ParallelCloneResult {
         self.cloner
             .clone_all_with_progress(self.requests, self.progress)

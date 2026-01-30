@@ -68,12 +68,11 @@ pub async fn run(args: ConfigArgs) -> Result<()> {
     }
 
     // Need a key for other operations
-    let key = match &args.key {
-        Some(k) => k,
-        None => {
-            header("Configuration");
-            return list_config(&config_path, args.global);
-        }
+    let key = if let Some(k) = &args.key {
+        k
+    } else {
+        header("Configuration");
+        return list_config(&config_path, args.global);
     };
 
     // Handle unset
@@ -82,18 +81,15 @@ pub async fn run(args: ConfigArgs) -> Result<()> {
     }
 
     // Handle get/set
-    match &args.value {
-        Some(value) => {
-            set_config(&config_path, key, value, args.append)?;
-            success(&format!("Set {} = {}", key, value));
-        }
-        None => {
-            let value = get_config(&config_path, key)?;
-            if args.absolute {
-                println!("{value}");
-            } else {
-                info(&format!("{} = {}", key, value));
-            }
+    if let Some(value) = &args.value {
+        set_config(&config_path, key, value, args.append)?;
+        success(&format!("Set {key} = {value}"));
+    } else {
+        let value = get_config(&config_path, key)?;
+        if args.absolute {
+            println!("{value}");
+        } else {
+            info(&format!("{key} = {value}"));
         }
     }
 
@@ -125,7 +121,7 @@ fn open_in_editor(path: &PathBuf) -> Result<()> {
     std::process::Command::new(&editor)
         .arg(path)
         .status()
-        .context(format!("Failed to open editor: {}", editor))?;
+        .context(format!("Failed to open editor: {editor}"))?;
 
     Ok(())
 }
@@ -148,9 +144,7 @@ fn list_config(path: &PathBuf, global: bool) -> Result<()> {
     let config = json.get("config");
 
     if config.is_none()
-        || config
-            .map(|c| c.as_object().map(|o| o.is_empty()).unwrap_or(true))
-            .unwrap_or(true)
+        || config.is_none_or(|c| c.as_object().is_none_or(sonic_rs::Object::is_empty))
     {
         crate::output::info("No configuration settings found");
         return Ok(());
@@ -161,7 +155,7 @@ fn list_config(path: &PathBuf, global: bool) -> Result<()> {
 
     if let Some(config) = config.and_then(|c| c.as_object()) {
         let mut entries: Vec<_> = config.iter().collect();
-        entries.sort_by(|a, b| a.0.cmp(&b.0));
+        entries.sort_by(|a, b| a.0.cmp(b.0));
 
         for (key, value) in entries {
             let key_str: String = key.to_string();
@@ -195,7 +189,7 @@ fn get_config(path: &PathBuf, key: &str) -> Result<String> {
     for part in &parts {
         current = current
             .get(*part)
-            .ok_or_else(|| anyhow::anyhow!("Key not found: {}", key))?;
+            .ok_or_else(|| anyhow::anyhow!("Key not found: {key}"))?;
     }
 
     Ok(format_value(current))
@@ -264,7 +258,7 @@ fn unset_config(path: &PathBuf, key: &str) -> Result<()> {
     let output = sonic_rs::to_string_pretty(&json)?;
     std::fs::write(path, format!("{output}\n"))?;
 
-    crate::output::success(&format!("Unset {}", key));
+    crate::output::success(&format!("Unset {key}"));
 
     Ok(())
 }
