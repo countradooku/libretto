@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -33,12 +33,6 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact_name: libretto
             asset_name: libretto-linux-aarch64
-
-          # macOS Intel
-          - os: macos-13
-            target: x86_64-apple-darwin
-            artifact_name: libretto
-            asset_name: libretto-macos-x86_64
 
           # macOS Apple Silicon
           - os: macos-latest
