@@ -149,7 +149,7 @@ impl PgpVerifier {
                     let signer = cert
                         .userids()
                         .next()
-                        .map(|uid| String::from_utf8_lossy(uid.value()).to_string());
+                        .map(|uid| String::from_utf8_lossy(uid.userid().value()).to_string());
 
                     return Ok(VerifiedSignature {
                         sig_type: SignatureAlgorithm::Pgp,
@@ -560,7 +560,7 @@ impl TrustedSignatureVerifier {
         let name = cert
             .userids()
             .next()
-            .map(|uid| String::from_utf8_lossy(uid.value()).to_string());
+            .map(|uid| String::from_utf8_lossy(uid.userid().value()).to_string());
 
         let mut trusted_key = TrustedKey::new(&key_id, trust_level);
         if let Some(n) = name {

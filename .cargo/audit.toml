@@ -1,0 +1,31 @@
+# Security audit configuration
+# https://rustsec.org/
+
+[advisories]
+# Advisories to ignore (vulnerabilities with no fix available or acceptable risk)
+ignore = [
+    # tokio-tar: PAX extended header parsing issue - no fix available
+    # We validate and sanitize paths before extraction
+    "RUSTSEC-2025-0111",
+
+    # rsa: Marvin Attack timing sidechannel - no fix available
+    # Used via sequoia-openpgp for PGP signature verification only,
+    # not for key generation or encryption operations
+    "RUSTSEC-2023-0071",
+
+    # derivative - unmaintained but stable, used by zbus (transitive)
+    "RUSTSEC-2024-0388",
+
+    # instant - unmaintained, used by futures-lite (transitive)
+    "RUSTSEC-2024-0384",
+
+    # number_prefix - unmaintained, used by indicatif
+    "RUSTSEC-2025-0119",
+
+    # rustls-pemfile - unmaintained but still functional
+    "RUSTSEC-2025-0134",
+]
+
+[yanked]
+# Warn about yanked crates
+enabled = true

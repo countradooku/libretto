@@ -160,7 +160,7 @@ tar = "0.4"
 flate2 = "1.0"
 
 # Git operations
-gix = { version = "0.66", default-features = false, features = [
+gix = { version = "0.78", default-features = false, features = [
     "blocking-network-client",
     "blocking-http-transport-reqwest-rust-tls",
 ] }
@@ -205,7 +205,7 @@ hex = "0.4"
 base64 = "0.22"
 subtle = "2.5"
 ed25519-dalek = { version = "2.1", features = ["std", "rand_core"] }
-sequoia-openpgp = { version = "1.20", default-features = false, features = [
+sequoia-openpgp = { version = "2.1", default-features = false, features = [
     "crypto-rust",
     "allow-experimental-crypto",
     "allow-variable-time-crypto",
