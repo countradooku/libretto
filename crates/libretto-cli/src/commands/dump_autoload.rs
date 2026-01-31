@@ -7,6 +7,7 @@ use libretto_autoloader::{AutoloadConfig, AutoloaderGenerator, OptimizationLevel
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::time::Instant;
 use tracing::{debug, info};
 
 /// Arguments for the dump-autoload command.
@@ -73,11 +74,7 @@ impl Psr4Value {
 pub async fn run(args: DumpAutoloadArgs) -> Result<()> {
     info!("running dump-autoload command");
 
-    println!(
-        "{} {}",
-        style("Libretto").cyan().bold(),
-        style("Generating autoloader...").dim()
-    );
+    let start_time = Instant::now();
 
     let vendor_dir = PathBuf::from("vendor");
     if !vendor_dir.exists() {
@@ -93,12 +90,23 @@ pub async fn run(args: DumpAutoloadArgs) -> Result<()> {
         OptimizationLevel::None
     };
 
+    let is_optimized = args.optimize || args.classmap_authoritative;
+
+    if is_optimized {
+        println!(
+            "{} Generating {}autoload files",
+            style("Libretto").cyan().bold(),
+            style("optimized ").yellow()
+        );
+    } else {
+        println!(
+            "{} Generating autoload files",
+            style("Libretto").cyan().bold()
+        );
+    }
+
     let mut generator =
         AutoloaderGenerator::with_optimization(vendor_dir.clone(), optimization_level);
-
-    if args.optimize || args.classmap_authoritative {
-        println!("{}", style("Generating optimized autoloader").dim());
-    }
 
     // Scan vendor directory for installed packages and load their autoload configs
     let mut package_count = 0;
@@ -151,19 +159,56 @@ pub async fn run(args: DumpAutoloadArgs) -> Result<()> {
     match generator.generate() {
         Ok(()) => {
             let stats = generator.stats();
+            let elapsed = start_time.elapsed();
+
+            // Calculate total classes (PSR-4 classes are lazily loaded, so we show classmap count)
+            let total_classes = stats.classmap_entries;
+
             println!(
-                "{} Autoloader generated successfully ({} PSR-4 namespaces, {} classmap entries)",
-                style("Success:").green().bold(),
-                stats.psr4_namespaces,
-                stats.classmap_entries
+                "Generated {}autoload files containing {} classes",
+                if is_optimized {
+                    style("optimized ").yellow().to_string()
+                } else {
+                    String::new()
+                },
+                style(total_classes).green().bold()
             );
+
+            // Show detailed breakdown
+            println!();
+            println!(
+                "   {} PSR-4 namespaces registered",
+                style(format!("{:>4}", stats.psr4_namespaces)).cyan()
+            );
+            println!(
+                "   {} classmap entries generated",
+                style(format!("{:>4}", stats.classmap_entries)).cyan()
+            );
+            println!(
+                "   {} files to include",
+                style(format!("{:>4}", stats.files_count)).cyan()
+            );
+            println!(
+                "   {} packages scanned",
+                style(format!("{:>4}", package_count)).cyan()
+            );
+
+            // Show timing
+            let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
+            println!();
+            println!("   {} {:.1}ms", style("Done in").dim(), elapsed_ms);
         }
         Err(e) => {
-            println!(
-                "{} Failed to generate autoloader: {}",
-                style("Error:").red().bold(),
-                e
+            eprintln!();
+            eprintln!(
+                "  {} {}",
+                style("ERROR").red().bold(),
+                style("Failed to generate autoloader").red()
             );
+            eprintln!();
+            eprintln!("  {}", e);
+            eprintln!();
+            std::process::exit(1);
         }
     }
 

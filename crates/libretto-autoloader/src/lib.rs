@@ -856,15 +856,33 @@ return ComposerAutoloaderInit{hash}::getLoader();
 
     /// Make path relative to vendor directory.
     fn make_relative_path(&self, path: &Path) -> String {
-        let relative = path.strip_prefix(&self.vendor_dir).unwrap_or(path);
-
-        // Ensure forward slashes and leading slash
-        let path_str = relative.to_string_lossy().replace('\\', "/");
-        if path_str.starts_with('/') {
-            path_str
-        } else {
-            format!("/{path_str}")
+        // Try to strip vendor dir prefix first
+        if let Ok(relative) = path.strip_prefix(&self.vendor_dir) {
+            let path_str = relative.to_string_lossy().replace('\\', "/");
+            if path_str.starts_with('/') {
+                return path_str;
+            } else {
+                return format!("/{path_str}");
+            }
         }
+
+        // Path is outside vendor dir (e.g., root project's app/ directory)
+        // Make it relative to vendor's parent (project root)
+        let vendor_parent = self.vendor_dir.parent().unwrap_or(Path::new("."));
+        if let Ok(relative) = path.strip_prefix(vendor_parent) {
+            let path_str = relative.to_string_lossy().replace('\\', "/");
+            // Clean up leading ./ or just .
+            let clean_path = path_str.trim_start_matches("./").trim_start_matches('.');
+            if clean_path.is_empty() {
+                return String::new();
+            }
+            return format!("/../{clean_path}");
+        }
+
+        // Fallback: use path as-is with leading slash
+        let path_str = path.to_string_lossy().replace('\\', "/");
+        let clean_path = path_str.trim_start_matches("./").trim_start_matches('.');
+        format!("/../{clean_path}")
     }
 
     /// Generate deterministic hash for class names.
