@@ -246,7 +246,7 @@ pub type Result<T> = std::result::Result<T, PluginError>;
 
 impl From<PluginError> for libretto_core::Error {
     fn from(err: PluginError) -> Self {
-        Self::Plugin(err.to_string())
+        Self::plugin(err.to_string())
     }
 }
 
@@ -275,6 +275,6 @@ mod tests {
     fn error_conversion() {
         let plugin_err = PluginError::NotFound("test".into());
         let core_err: libretto_core::Error = plugin_err.into();
-        assert!(matches!(core_err, libretto_core::Error::Plugin(_)));
+        assert!(matches!(core_err, libretto_core::Error::Plugin { .. }));
     }
 }

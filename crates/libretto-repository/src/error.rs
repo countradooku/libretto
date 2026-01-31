@@ -176,40 +176,39 @@ impl std::error::Error for RepositoryError {}
 impl From<RepositoryError> for CoreError {
     fn from(err: RepositoryError) -> Self {
         match err {
-            RepositoryError::PackageNotFound { name, .. } => Self::PackageNotFound { name },
+            RepositoryError::PackageNotFound { name, .. } => Self::package_not_found(name),
             RepositoryError::VersionNotFound { name, constraint } => {
-                Self::VersionNotFound { name, constraint }
+                Self::version_not_found(name, constraint, vec![])
             }
-            RepositoryError::Network { message, .. } => Self::Network(message),
+            RepositoryError::Network { message, .. } => Self::network_simple(message),
             RepositoryError::RateLimited { url, retry_after } => {
                 let msg = if let Some(secs) = retry_after {
                     format!("Rate limited by {url}, retry after {secs}s")
                 } else {
                     format!("Rate limited by {url}")
                 };
-                Self::Network(msg)
+                Self::network_simple(msg)
             }
             RepositoryError::Timeout { url, timeout_secs } => {
-                Self::Network(format!("Request to {url} timed out after {timeout_secs}s"))
+                Self::network_simple(format!("Request to {url} timed out after {timeout_secs}s"))
             }
             RepositoryError::Unavailable { url, message } => {
-                Self::Network(format!("Repository {url} unavailable: {message}"))
+                Self::network_simple(format!("Repository {url} unavailable: {message}"))
             }
             RepositoryError::AuthRequired { url } => {
-                Self::Config(format!("Authentication required for {url}"))
+                Self::config(format!("Authentication required for {url}"))
             }
             RepositoryError::AuthFailed { message, .. } => {
-                Self::Config(format!("Authentication failed: {message}"))
+                Self::config(format!("Authentication failed: {message}"))
             }
-            RepositoryError::InvalidConfig { message } => Self::Config(message),
-            RepositoryError::ParseError { message, .. } => Self::InvalidManifest(message),
-            RepositoryError::Cache { message } => Self::Cache(message),
-            RepositoryError::InvalidUrl { message, .. } => Self::Config(message),
-            RepositoryError::VcsError { message, .. } => Self::Vcs(message),
-            RepositoryError::PathError { path, message } => Self::Io {
-                path: path.into(),
-                message,
-            },
+            RepositoryError::InvalidConfig { message } => Self::config(message),
+            RepositoryError::ParseError { message, .. } => Self::manifest_simple(message),
+            RepositoryError::Cache { message } => Self::cache(message),
+            RepositoryError::InvalidUrl { message, .. } => Self::config(message),
+            RepositoryError::VcsError { message, .. } => Self::vcs(message),
+            RepositoryError::PathError { path, message } => {
+                Self::io(path, std::io::Error::other(message))
+            }
         }
     }
 }

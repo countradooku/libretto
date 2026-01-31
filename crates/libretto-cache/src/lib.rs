@@ -384,11 +384,11 @@ fn copy_recursive(src: &Path, dest: &Path) -> Result<u64> {
     std::fs::create_dir_all(dest).map_err(|e| Error::io(dest, e))?;
 
     for entry in walkdir::WalkDir::new(src).min_depth(1) {
-        let entry = entry.map_err(|e| Error::Cache(e.to_string()))?;
+        let entry = entry.map_err(|e| Error::cache(e.to_string()))?;
         let relative = entry
             .path()
             .strip_prefix(src)
-            .map_err(|e| Error::Cache(e.to_string()))?;
+            .map_err(|e| Error::cache(e.to_string()))?;
         let dest_path = dest.join(relative);
 
         if entry.file_type().is_dir() {
@@ -400,7 +400,7 @@ fn copy_recursive(src: &Path, dest: &Path) -> Result<u64> {
             std::fs::copy(entry.path(), &dest_path).map_err(|e| Error::io(entry.path(), e))?;
             total_size += entry
                 .metadata()
-                .map_err(|e| Error::Cache(e.to_string()))?
+                .map_err(|e| Error::cache(e.to_string()))?
                 .len();
         }
     }

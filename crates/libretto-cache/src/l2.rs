@@ -105,7 +105,7 @@ impl L2Cache {
         let data = if entry.compressed {
             if let Some(compressed_data) = compression::strip_magic(&data) {
                 compression::decompress_with_hint(compressed_data, entry.original_size as usize)
-                    .map_err(|e| Error::Cache(format!("decompression failed: {e}")))?
+                    .map_err(|e| Error::cache(format!("decompression failed: {e}")))?
             } else {
                 data
             }
@@ -174,7 +174,7 @@ impl L2Cache {
         let (final_data, compressed) =
             if self.config.compression_enabled && compression::should_compress(data) {
                 let compressed = compression::compress(data, self.config.compression_level)
-                    .map_err(|e| Error::Cache(format!("compression failed: {e}")))?;
+                    .map_err(|e| Error::cache(format!("compression failed: {e}")))?;
 
                 // Only use compressed if it's actually smaller
                 if compressed.len() < data.len() {
@@ -243,7 +243,7 @@ impl L2Cache {
         let (final_data, compressed) =
             if self.config.compression_enabled && compression::should_compress(data) {
                 let compressed = compression::compress(data, self.config.compression_level)
-                    .map_err(|e| Error::Cache(format!("compression failed: {e}")))?;
+                    .map_err(|e| Error::cache(format!("compression failed: {e}")))?;
 
                 if compressed.len() < data.len() {
                     (compression::with_magic(compressed), true)

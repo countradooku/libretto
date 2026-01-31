@@ -4,6 +4,7 @@
 
 use crate::cas_cache;
 use crate::fetcher::Fetcher;
+use crate::installer_paths::InstallerPaths;
 use crate::output::format_bytes;
 use crate::output::live::LiveProgress;
 use crate::output::table::Table;
@@ -161,16 +162,29 @@ pub async fn run(args: InstallArgs) -> Result<()> {
         None
     };
 
+    // Parse installer-paths from composer.json for custom installation locations
+    let installer_paths = InstallerPaths::from_composer(&composer);
+
     // Check for lock file
     let has_lock = composer_lock_path.exists();
 
     let result = if has_lock && !args.prefer_lowest {
-        install_from_lock(&composer_lock_path, &vendor_dir, &args, progress.as_ref()).await
+        install_from_lock(
+            &composer_lock_path,
+            &vendor_dir,
+            &cwd,
+            &installer_paths,
+            &args,
+            progress.as_ref(),
+        )
+        .await
     } else {
         resolve_and_install(
             &composer,
             &composer_lock_path,
             &vendor_dir,
+            &cwd,
+            &installer_paths,
             &args,
             progress.as_ref(),
         )
@@ -335,6 +349,8 @@ async fn run_security_audit(lock_path: &PathBuf, args: &InstallArgs) -> Result<(
 async fn install_from_lock(
     lock_path: &PathBuf,
     vendor_dir: &PathBuf,
+    base_dir: &std::path::Path,
+    installer_paths: &InstallerPaths,
     args: &InstallArgs,
     progress: Option<&LiveProgress>,
 ) -> Result<()> {
@@ -382,7 +398,15 @@ async fn install_from_lock(
     std::fs::create_dir_all(vendor_dir)?;
 
     // Install packages
-    install_packages(&packages, vendor_dir, args, progress).await?;
+    install_packages(
+        &packages,
+        vendor_dir,
+        base_dir,
+        installer_paths,
+        args,
+        progress,
+    )
+    .await?;
 
     Ok(())
 }
@@ -392,6 +416,8 @@ async fn resolve_and_install(
     composer: &Value,
     lock_path: &PathBuf,
     vendor_dir: &PathBuf,
+    base_dir: &std::path::Path,
+    installer_paths: &InstallerPaths,
     args: &InstallArgs,
     progress: Option<&LiveProgress>,
 ) -> Result<()> {
@@ -516,6 +542,7 @@ async fn resolve_and_install(
             is_dev: p.is_dev,
             dist_url: p.dist_url.clone(),
             dist_shasum: p.dist_shasum.clone(),
+            package_type: p.package_type.clone(),
         })
         .collect();
 
@@ -529,7 +556,15 @@ async fn resolve_and_install(
     std::fs::create_dir_all(vendor_dir)?;
 
     // Install packages
-    install_packages(&packages, vendor_dir, args, progress).await?;
+    install_packages(
+        &packages,
+        vendor_dir,
+        base_dir,
+        installer_paths,
+        args,
+        progress,
+    )
+    .await?;
 
     // Generate lock file
     generate_lock_file(lock_path, &resolution, composer)?;
@@ -566,6 +601,8 @@ struct PackageInfo {
     is_dev: bool,
     dist_url: Option<String>,
     dist_shasum: Option<String>,
+    /// Package type (e.g., "library", "wordpress-plugin", "drupal-module")
+    package_type: Option<String>,
 }
 
 fn parse_lock_package(pkg: &Value, is_dev: bool) -> Option<PackageInfo> {
@@ -581,6 +618,7 @@ fn parse_lock_package(pkg: &Value, is_dev: bool) -> Option<PackageInfo> {
         .and_then(|d| d.get("shasum"))
         .and_then(|u| u.as_str())
         .map(String::from);
+    let package_type = pkg.get("type").and_then(|t| t.as_str()).map(String::from);
 
     Some(PackageInfo {
         name: name.to_string(),
@@ -588,6 +626,7 @@ fn parse_lock_package(pkg: &Value, is_dev: bool) -> Option<PackageInfo> {
         is_dev,
         dist_url,
         dist_shasum,
+        package_type,
     })
 }
 
@@ -652,6 +691,8 @@ fn show_packages_table(packages: &[PackageInfo]) {
 async fn install_packages(
     packages: &[PackageInfo],
     vendor_dir: &PathBuf,
+    base_dir: &std::path::Path,
+    installer_paths: &InstallerPaths,
     args: &InstallArgs,
     progress: Option<&LiveProgress>,
 ) -> Result<()> {
@@ -683,7 +724,12 @@ async fn install_packages(
     let mut skipped = 0;
 
     for pkg in packages {
-        let dest = vendor_dir.join(pkg.name.replace('/', std::path::MAIN_SEPARATOR_STR));
+        // Check if this package has a custom install path
+        let dest = installer_paths
+            .get_path(base_dir, &pkg.name, pkg.package_type.as_deref())
+            .unwrap_or_else(|| {
+                vendor_dir.join(pkg.name.replace('/', std::path::MAIN_SEPARATOR_STR))
+            });
 
         if let Some(ref url_str) = pkg.dist_url {
             let url = convert_github_api_url(url_str);

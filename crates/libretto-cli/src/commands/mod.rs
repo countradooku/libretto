@@ -91,6 +91,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub no_cache: bool,
 
+    /// Output format (text, json, or table)
+    #[arg(long, global = true, value_enum, default_value = "text")]
+    pub format: OutputFormat,
+
     /// Increase the verbosity of messages: -v for verbose, -vv for very verbose, -vvv for debug
     #[arg(short = 'v', long, global = true, action = clap::ArgAction::Count)]
     pub verbose: u8,

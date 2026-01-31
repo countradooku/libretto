@@ -11,6 +11,7 @@ mod cas_cache;
 mod commands;
 mod context;
 mod fetcher;
+mod installer_paths;
 mod output;
 mod platform;
 mod scripts;
@@ -46,11 +47,16 @@ fn main() -> ExitCode {
         .without_time()
         .init();
 
+    // Enable JSON output if requested
+    if matches!(cli.format, commands::OutputFormat::Json) {
+        output::json::enable();
+    }
+
     // Create context
     let ctx = match Context::new(&cli.to_context_args()) {
         Ok(ctx) => ctx,
         Err(e) => {
-            output::error(&format!("Failed to initialize: {e}"));
+            output::json::print_error(&anyhow::anyhow!("Failed to initialize: {e}"));
             return ExitCode::FAILURE;
         }
     };
@@ -63,8 +69,8 @@ fn main() -> ExitCode {
 
     let result = runtime.block_on(run_command(&cli, &ctx));
 
-    // Show profiling info if requested
-    if ctx.profile {
+    // Show profiling info if requested (only in text mode)
+    if ctx.profile && !output::json::is_enabled() {
         let elapsed = start.elapsed();
         eprintln!(
             "\n[profile] Total time: {}",
@@ -75,7 +81,7 @@ fn main() -> ExitCode {
     match result {
         Ok(code) => code,
         Err(e) => {
-            output::error(&format!("{e}"));
+            output::json::print_error(&e);
             ExitCode::FAILURE
         }
     }

@@ -374,7 +374,7 @@ impl CacheIndex {
 
         // Serialize with rkyv
         let serialized = rkyv::to_bytes::<rkyv::rancor::Error>(&index_data)
-            .map_err(|e| Error::Cache(format!("rkyv serialization failed: {e}")))?;
+            .map_err(|e| Error::cache(format!("rkyv serialization failed: {e}")))?;
 
         // Prepend magic bytes
         let mut final_data = Vec::with_capacity(RKYV_MAGIC.len() + serialized.len());
@@ -406,7 +406,7 @@ impl CacheIndex {
     /// Returns error if export fails.
     pub fn export_json(&self) -> Result<String> {
         let entries: Vec<IndexEntry> = self.entries.read().values().cloned().collect();
-        sonic_rs::to_string_pretty(&entries).map_err(|e| Error::Cache(e.to_string()))
+        sonic_rs::to_string_pretty(&entries).map_err(|e| Error::cache(e.to_string()))
     }
 }
 

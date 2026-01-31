@@ -316,7 +316,7 @@ impl From<url::ParseError> for ConfigError {
 
 impl From<ConfigError> for libretto_core::Error {
     fn from(err: ConfigError) -> Self {
-        Self::Config(err.to_string())
+        Self::config(err.to_string())
     }
 }
 

@@ -665,9 +665,9 @@ try {{
         result
     }
 
-    /// Execute a shell command.
+    /// Execute a shell command with optional timeout enforcement.
     fn execute_shell(&self, cmd: &str) -> Result<Option<ExitStatus>> {
-        debug!(command = %cmd, "executing shell command");
+        debug!(command = %cmd, timeout = self.config.timeout, "executing shell command");
 
         // Build environment
         let mut env: HashMap<String, String> = std::env::vars().collect();
@@ -711,11 +711,42 @@ try {{
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit());
 
-        let status = command
-            .status()
-            .context(format!("Failed to execute: {cmd}"))?;
+        // If timeout is set (> 0), enforce it
+        if self.config.timeout > 0 {
+            let timeout_duration = Duration::from_secs(self.config.timeout);
+            let mut child = command.spawn().context(format!("Failed to spawn: {cmd}"))?;
 
-        Ok(Some(status))
+            let start = Instant::now();
+
+            // Poll for completion with timeout
+            loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => {
+                        return Ok(Some(status));
+                    }
+                    Ok(None) => {
+                        // Still running, check timeout
+                        if start.elapsed() >= timeout_duration {
+                            // Kill the process
+                            let _ = child.kill();
+                            let _ = child.wait(); // Reap the zombie
+                            bail!("Script timed out after {}s: {}", self.config.timeout, cmd);
+                        }
+                        // Sleep briefly before polling again
+                        std::thread::sleep(Duration::from_millis(100));
+                    }
+                    Err(e) => {
+                        return Err(anyhow::anyhow!("Failed to wait for process: {}", e));
+                    }
+                }
+            }
+        } else {
+            // No timeout, wait indefinitely
+            let status = command
+                .status()
+                .context(format!("Failed to execute: {cmd}"))?;
+            Ok(Some(status))
+        }
     }
 }
 

@@ -277,7 +277,7 @@ impl Auditor {
             .timeout(Duration::from_secs(30))
             .https_only(true)
             .build()
-            .map_err(|e| CoreError::Network(e.to_string()))?;
+            .map_err(|e| CoreError::network_simple(e.to_string()))?;
 
         let advisory_db = AdvisoryDatabase::new().map_err(|e| CoreError::Audit(e.to_string()))?;
 
@@ -388,7 +388,7 @@ impl Auditor {
     ) -> CoreResult<()> {
         verify_file(path, algorithm, expected_hash)
             .await
-            .map_err(|e| CoreError::Integrity(e.to_string()))
+            .map_err(|e| CoreError::integrity(e.to_string()))
     }
 
     /// Verify package signature.
@@ -409,7 +409,7 @@ impl Auditor {
 
         self.signature_verifier
             .verify(&data, &signature)
-            .map_err(|e| CoreError::Signature(e.to_string()))
+            .map_err(|e| CoreError::signature(e.to_string()))
     }
 
     /// Clear advisory cache.

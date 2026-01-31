@@ -9,12 +9,14 @@
 #![allow(dead_code)]
 
 pub mod colors;
+pub mod json;
 pub mod live;
 pub mod progress;
 pub mod prompt;
 pub mod style;
 pub mod table;
 
+// JSON output functions available via json:: module but not re-exported
 pub use style::{Icon, OutputMode, Theme};
 
 use std::io::{IsTerminal, stderr, stdout};

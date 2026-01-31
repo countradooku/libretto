@@ -1,9 +1,11 @@
 //! Run-script command - execute scripts from composer.json.
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Args;
 use sonic_rs::{JsonContainerTrait, JsonValueTrait};
 use std::collections::HashMap;
+use std::process::Stdio;
+use std::time::{Duration, Instant};
 
 /// Arguments for the run-script command
 #[derive(Args, Debug, Clone)]
@@ -154,16 +156,63 @@ pub async fn run(args: RunScriptArgs) -> Result<()> {
 
         info(&format!("> {full_cmd}"));
 
-        // Execute command
+        // Execute command with timeout enforcement
         let shell = if cfg!(windows) { "cmd" } else { "sh" };
         let shell_arg = if cfg!(windows) { "/C" } else { "-c" };
 
-        let status = std::process::Command::new(shell)
-            .arg(shell_arg)
-            .arg(&full_cmd)
-            .envs(&env)
-            .status()
-            .context(format!("Failed to execute: {full_cmd}"))?;
+        let status = if args.timeout > 0 {
+            // Spawn process and enforce timeout
+            let mut child = std::process::Command::new(shell)
+                .arg(shell_arg)
+                .arg(&full_cmd)
+                .envs(&env)
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .context(format!("Failed to spawn: {full_cmd}"))?;
+
+            let timeout_duration = Duration::from_secs(args.timeout);
+            let start = Instant::now();
+
+            let mut timed_out = false;
+            let status = loop {
+                match child.try_wait() {
+                    Ok(Some(status)) => break Some(status),
+                    Ok(None) => {
+                        if start.elapsed() >= timeout_duration {
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            error(&format!(
+                                "Script timed out after {}s: {}",
+                                args.timeout, full_cmd
+                            ));
+                            timed_out = true;
+                            break None;
+                        }
+                        std::thread::sleep(Duration::from_millis(100));
+                    }
+                    Err(e) => {
+                        bail!("Failed to wait for process: {}", e);
+                    }
+                }
+            };
+
+            if timed_out {
+                failed = true;
+                break;
+            }
+
+            status.unwrap()
+        } else {
+            // No timeout, wait indefinitely
+            std::process::Command::new(shell)
+                .arg(shell_arg)
+                .arg(&full_cmd)
+                .envs(&env)
+                .status()
+                .context(format!("Failed to execute: {full_cmd}"))?
+        };
 
         if !status.success() {
             error(&format!(

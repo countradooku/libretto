@@ -132,14 +132,14 @@ impl Extractor {
     /// Returns error if extraction fails.
     pub fn extract(&self, archive: &Path, dest: &Path) -> Result<ExtractionResult> {
         let archive_type = ArchiveType::from_path(archive).ok_or_else(|| {
-            Error::Archive(format!("unknown archive type: {}", archive.display()))
+            Error::archive(format!("unknown archive type: {}", archive.display()))
         })?;
 
         debug!(archive = ?archive, dest = ?dest, archive_type = ?archive_type, "extracting");
 
         // Check if CLI tool is available for formats that require it
         if archive_type.requires_cli() && !archive_type.is_tool_available() {
-            return Err(Error::Archive(format!(
+            return Err(Error::archive(format!(
                 "required tool for {} extraction is not installed",
                 archive_type.extension()
             )));
@@ -168,13 +168,13 @@ impl Extractor {
 
     fn extract_zip(&self, archive: &Path, dest: &Path) -> Result<ExtractionResult> {
         let file = File::open(archive).map_err(|e| Error::io(archive, e))?;
-        let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::Archive(e.to_string()))?;
+        let mut zip = zip::ZipArchive::new(file).map_err(|e| Error::archive(e.to_string()))?;
 
         let mut files_extracted = 0;
         let mut total_size = 0u64;
 
         for i in 0..zip.len() {
-            let mut entry = zip.by_index(i).map_err(|e| Error::Archive(e.to_string()))?;
+            let mut entry = zip.by_index(i).map_err(|e| Error::archive(e.to_string()))?;
 
             let path = match entry.enclosed_name() {
                 Some(p) => p.clone(),
@@ -237,12 +237,12 @@ impl Extractor {
 
         for entry in archive
             .entries()
-            .map_err(|e| Error::Archive(e.to_string()))?
+            .map_err(|e| Error::archive(e.to_string()))?
         {
-            let mut entry = entry.map_err(|e| Error::Archive(e.to_string()))?;
+            let mut entry = entry.map_err(|e| Error::archive(e.to_string()))?;
             let path = entry
                 .path()
-                .map_err(|e| Error::Archive(e.to_string()))?
+                .map_err(|e| Error::archive(e.to_string()))?
                 .into_owned();
 
             let out_path = self.apply_strip_prefix(&path, dest);
@@ -298,9 +298,8 @@ impl Extractor {
 
     #[allow(clippy::unused_self)]
     fn extract_7z(&self, archive: &Path, dest: &Path) -> Result<ExtractionResult> {
-        let cmd = find_7z_command().ok_or_else(|| {
-            Error::Archive("7z/7zz not found. Install p7zip or 7-zip.".to_string())
-        })?;
+        let cmd = find_7z_command()
+            .ok_or_else(|| Error::archive("7z/7zz not found. Install p7zip or 7-zip."))?;
 
         debug!(cmd = %cmd, archive = ?archive, dest = ?dest, "extracting 7z");
 
@@ -310,11 +309,11 @@ impl Extractor {
             .arg(format!("-o{}", dest.display())) // Output directory
             .arg(archive)
             .output()
-            .map_err(|e| Error::Archive(format!("failed to run {cmd}: {e}")))?;
+            .map_err(|e| Error::archive(format!("failed to run {cmd}: {e}")))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::Archive(format!("7z extraction failed: {stderr}")));
+            return Err(Error::archive(format!("7z extraction failed: {stderr}")));
         }
 
         // Count extracted files
@@ -338,11 +337,11 @@ impl Extractor {
             .arg(archive)
             .arg(dest)
             .output()
-            .map_err(|e| Error::Archive(format!("failed to run unrar: {e}")))?;
+            .map_err(|e| Error::archive(format!("failed to run unrar: {e}")))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(Error::Archive(format!("unrar extraction failed: {stderr}")));
+            return Err(Error::archive(format!("unrar extraction failed: {stderr}")));
         }
 
         // Count extracted files
@@ -470,11 +469,11 @@ pub fn create_zip<W: std::io::Write + Seek>(
         .compression_method(zip::CompressionMethod::Deflated);
 
     for entry in WalkDir::new(source).min_depth(1) {
-        let entry = entry.map_err(|e| Error::Archive(e.to_string()))?;
+        let entry = entry.map_err(|e| Error::archive(e.to_string()))?;
         let path = entry.path();
         let relative = path
             .strip_prefix(source)
-            .map_err(|e| Error::Archive(e.to_string()))?;
+            .map_err(|e| Error::archive(e.to_string()))?;
 
         let name = prefix.map_or_else(
             || relative.to_path_buf(),
@@ -485,17 +484,17 @@ pub fn create_zip<W: std::io::Write + Seek>(
 
         if path.is_dir() {
             zip.add_directory(&*name_str, options)
-                .map_err(|e| Error::Archive(e.to_string()))?;
+                .map_err(|e| Error::archive(e.to_string()))?;
         } else {
             zip.start_file(&*name_str, options)
-                .map_err(|e| Error::Archive(e.to_string()))?;
+                .map_err(|e| Error::archive(e.to_string()))?;
 
             let mut file = File::open(path).map_err(|e| Error::io(path, e))?;
-            std::io::copy(&mut file, &mut zip).map_err(|e| Error::Archive(e.to_string()))?;
+            std::io::copy(&mut file, &mut zip).map_err(|e| Error::archive(e.to_string()))?;
         }
     }
 
-    zip.finish().map_err(|e| Error::Archive(e.to_string()))?;
+    zip.finish().map_err(|e| Error::archive(e.to_string()))?;
     Ok(())
 }
 

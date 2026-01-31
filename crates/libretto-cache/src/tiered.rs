@@ -223,7 +223,7 @@ impl TieredCache {
             let data = if entry.compressed {
                 if let Some(compressed) = compression::strip_magic(&entry.data) {
                     compression::decompress_with_hint(compressed, entry.original_size as usize)
-                        .map_err(|e| Error::Cache(format!("decompression failed: {e}")))?
+                        .map_err(|e| Error::cache(format!("decompression failed: {e}")))?
                 } else {
                     entry.data.to_vec()
                 }
@@ -255,7 +255,7 @@ impl TieredCache {
                         compressed,
                         index_entry.original_size as usize,
                     )
-                    .map_err(|e| Error::Cache(format!("decompression failed: {e}")))?
+                    .map_err(|e| Error::cache(format!("decompression failed: {e}")))?
                 } else {
                     raw_data
                 }
@@ -303,7 +303,7 @@ impl TieredCache {
         let (l1_data, compressed) =
             if self.config.compression_enabled && compression::should_compress(data) {
                 let compressed = compression::compress(data, self.config.compression_level)
-                    .map_err(|e| Error::Cache(format!("compression failed: {e}")))?;
+                    .map_err(|e| Error::cache(format!("compression failed: {e}")))?;
 
                 if compressed.len() < data.len() {
                     (compression::with_magic(compressed), true)
@@ -352,7 +352,7 @@ impl TieredCache {
         let (l1_data, compressed) =
             if self.config.compression_enabled && compression::should_compress(data) {
                 let compressed = compression::compress(data, self.config.compression_level)
-                    .map_err(|e| Error::Cache(format!("compression failed: {e}")))?;
+                    .map_err(|e| Error::cache(format!("compression failed: {e}")))?;
 
                 if compressed.len() < data.len() {
                     (compression::with_magic(compressed), true)

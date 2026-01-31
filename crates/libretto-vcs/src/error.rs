@@ -319,7 +319,7 @@ impl From<std::io::Error> for VcsError {
 
 impl From<VcsError> for libretto_core::Error {
     fn from(err: VcsError) -> Self {
-        Self::Vcs(err.to_string())
+        Self::vcs(err.to_string())
     }
 }
 

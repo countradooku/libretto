@@ -295,7 +295,7 @@ impl RepositoryCache {
 
             tiered
                 .put(data, CacheEntryType::Metadata, Some(ttl), metadata)
-                .map_err(|e| Error::Cache(e.to_string()))?;
+                .map_err(|e| Error::cache(e.to_string()))?;
         }
 
         // Store HTTP metadata

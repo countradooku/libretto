@@ -255,20 +255,21 @@ impl From<url::ParseError> for DownloadError {
 impl From<DownloadError> for libretto_core::Error {
     fn from(err: DownloadError) -> Self {
         match err {
-            DownloadError::Network { message, .. } => Self::Network(message),
+            DownloadError::Network { message, .. } => Self::network_simple(message),
             DownloadError::ChecksumMismatch {
                 name,
                 expected,
                 actual,
-            } => Self::ChecksumMismatch {
-                name,
-                expected,
-                actual,
+            } => Self::checksum_mismatch(name, expected, actual),
+            DownloadError::Archive(msg) => Self::archive(msg),
+            DownloadError::Vcs(msg) => Self::vcs(msg),
+            DownloadError::Io { path, message } => Self::Io {
+                code: libretto_core::error::ErrorCodeSource(libretto_core::error::ErrorCode::E0501),
+                path,
+                message,
+                suggestions: vec![],
             },
-            DownloadError::Archive(msg) => Self::Archive(msg),
-            DownloadError::Vcs(msg) => Self::Vcs(msg),
-            DownloadError::Io { path, message } => Self::Io { path, message },
-            other => Self::Network(other.to_string()),
+            other => Self::network_simple(other.to_string()),
         }
     }
 }

@@ -28,7 +28,6 @@ Libretto is a PHP package manager written in Rust that can read `composer.json` 
 ### What Libretto Is NOT
 
 - **Not a drop-in replacement for Composer** - Composer plugins are PHP code and cannot run natively in Rust
-- **Not feature-complete** - Many Composer features are missing or simplified
 - **Not production-ready** - This is alpha software
 
 ## Why Libretto?
@@ -95,9 +94,9 @@ libretto init
 libretto cache:clear
 ```
 
-## How It Works
+## Features
 
-### Performance Techniques
+### Performance
 
 | Feature | Implementation |
 |---------|----------------|
@@ -130,36 +129,80 @@ Libretto uses [mago-syntax](https://github.com/carthage-software/mago) to scan P
 - Incremental updates via mtime + content hash tracking
 - PSR-4, PSR-0, classmap, and files autoloading
 
+### Authentication
+
+Full support for private repositories:
+
+| Method | Support |
+|--------|---------|
+| HTTP Basic (username/password) | Full |
+| Bearer tokens | Full |
+| GitHub OAuth | Full |
+| GitLab OAuth & private tokens | Full |
+| Bitbucket OAuth | Full |
+| OS Keyring integration | Full |
+| `auth.json` file | Full |
+
+Credentials are stored securely using your OS keyring (macOS Keychain, Windows Credential Manager, Linux Secret Service).
+
+### Script Support
+
+| Script Type | Support |
+|-------------|---------|
+| Shell commands | Full |
+| `@php` scripts | Full |
+| `@composer` scripts | Full |
+| `@putenv` directives | Full |
+| PHP class callbacks | Via stubs |
+| Script timeout | Enforced |
+
+### Interactive Mode
+
+When running in a terminal, Libretto provides interactive prompts for:
+- Confirmation dialogs
+- Credential input (with secure password masking)
+- Selection from multiple options
+- Conflict resolution
+
+In CI/CD environments (non-TTY), sensible defaults are used automatically.
+
+### Custom Install Paths
+
+Support for `extra.installer-paths` configuration:
+
+```json
+{
+  "extra": {
+    "installer-paths": {
+      "wp-content/plugins/{$name}/": ["type:wordpress-plugin"],
+      "wp-content/themes/{$name}/": ["type:wordpress-theme"],
+      "modules/{$name}/": ["type:drupal-module"]
+    }
+  }
+}
+```
+
+### Error Messages
+
+Libretto provides helpful error messages with:
+- Error codes for easy reference (e.g., `E0042`)
+- Contextual information about what went wrong
+- Suggestions for how to fix the issue
+- JSON output option for tooling integration (`--format=json`)
+
 ## Limitations
 
 ### No Plugin Support
 
 Composer plugins are PHP code that hooks into Composer's runtime. This is architecturally impossible to support from native Rust without embedding a PHP interpreter.
 
-If your project relies on plugins like:
-- `composer/installers` (custom install paths)
-- `phpstan/extension-installer`
-- Framework-specific plugins
-
-You should continue using Composer.
-
-### Script Support
-
-| Script Type | Support |
-|-------------|---------|
-| Shell commands | Works |
-| `@php` scripts | Works (calls PHP binary) |
-| `@composer` scripts | Partial |
-| PHP class callbacks | Basic support via stubs |
-
-Complex callbacks that deeply integrate with Composer's internals may not work correctly.
+If your project relies on plugins that modify Composer's internal behavior (not just custom install paths), you should continue using Composer.
 
 ### Other Limitations
 
-- Private repository authentication is basic
-- Some `composer.json` options are ignored
-- Error messages are less polished than Composer's
-- No interactive prompts for conflicts
+- Some rarely-used `composer.json` options may be ignored
+- Complex PHP callbacks that deeply integrate with Composer internals may not work
+- No support for NTLM authentication (Windows domain auth)
 
 ## Platform Support
 

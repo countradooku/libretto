@@ -10,7 +10,7 @@
 #![warn(clippy::all)]
 #![allow(clippy::module_name_repetitions)]
 
-mod error;
+pub mod error;
 mod hash;
 mod json;
 mod package;
